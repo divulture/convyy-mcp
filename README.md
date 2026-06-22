@@ -1,169 +1,169 @@
 # Convyy MCP
 
-`Convyy MCP` — это отдельный MCP server для работы с доской Convyy из агентных клиентов.
+`Convyy MCP` is a standalone MCP server that lets AI clients work with Convyy boards.
 
-Пользовательский сценарий простой:
+Typical usage looks like this:
 
-1. пользователь открывает Convyy по адресу домена;
-2. пользователь подключает `Convyy MCP` в Claude, Codex, Cursor, Cline или другом MCP-клиенте;
-3. агент получает доступ к board-oriented инструментам Convyy;
-4. агент может работать с доской через MCP tools.
+1. a user opens Convyy in the browser at the hosted domain;
+2. a user connects `Convyy MCP` in Claude, Codex, Cursor, Cline, or another MCP client;
+3. the agent gets access to Convyy board tools;
+4. the agent works with the board through MCP tools.
 
-## Для чего нужен Convyy MCP
+## What It Is For
 
-`Convyy MCP` нужен, чтобы агент мог безопасно работать с доской, а не только писать текст.
+`Convyy MCP` exists so an agent can work with an actual Convyy board instead of only producing text.
 
-Через него агент может:
+Through this MCP server, an agent can:
 
-- читать page context;
-- понимать, к какой странице привязан чат;
-- создавать новый AI-owned контент;
-- коммитить каждый AI-ответ как отдельный batch;
-- заменять или откатывать только последний AI batch текущего чата;
-- выбирать follow-up действие: `append`, `replace-last-batch`, `undo-last-batch`, `new-page`, `bind-page`.
+- read page context;
+- understand which page the chat is bound to;
+- create new AI-owned board content;
+- commit each AI response as a separate batch;
+- replace or revert only the latest AI batch for the current chat;
+- choose a follow-up action such as `append`, `replace-last-batch`, `undo-last-batch`, `new-page`, or `bind-page`.
 
-## Что умеет MCP
+## Current Capabilities
 
-Текущий MCP поддерживает:
+The current MCP server includes:
 
-- runtime state для chat-to-page bindings;
-- one-active-generation gate на один board runtime;
+- runtime state for chat-to-page bindings;
+- a one-active-generation gate per board runtime;
 - follow-up action resolution;
-- stdio MCP transport с `initialize`, `ping`, `tools/list`, `tools/call`;
-- orchestration endpoint для обычного prompt workflow;
-- direct tools для диаграмм, канбана, template fill, journey map, vision summary и generic board summary.
+- stdio MCP transport with `initialize`, `ping`, `tools/list`, and `tools/call`;
+- an orchestration entrypoint for normal prompt workflows;
+- direct tools for diagrams, kanban boards, template fill, journey maps, vision summaries, and generic board summaries.
 
-## Ограничения MVP
+## MVP Constraints
 
-Текущая модель работы намеренно ограничена:
+The current MVP is intentionally constrained:
 
-- агент не редактирует существующие пользовательские объекты;
-- агент добавляет только новый AI-owned контент;
-- каждый AI-ответ становится отдельным batch;
-- undo и replace работают только для последнего AI batch текущего чата;
-- board-specific side effects проходят через контролируемый runtime слой Convyy.
+- the agent does not edit existing user-created objects;
+- the agent only adds new AI-owned content;
+- every AI response becomes a separate batch;
+- undo and replace only work for the latest AI batch of the current chat;
+- board-specific side effects go through the controlled Convyy runtime layer.
 
-## Основные инструменты
+## Main Tools
 
 ### `convyy_run_prompt`
 
-Главный orchestration tool.
+The main orchestration tool.
 
-Что делает:
+It:
 
-- определяет follow-up action по prompt;
-- выбирает нужный tool path;
-- работает с page binding;
-- коммитит итоговый batch в доску.
+- resolves the follow-up action from the prompt;
+- picks the correct tool path;
+- works with page binding;
+- commits the final batch to the board.
 
-Использовать его нужно по умолчанию, если не требуется вручную вызывать специализированный tool.
+Use this by default unless you specifically need to call a specialized tool directly.
 
 ### `convyy_bind_chat`
 
-Явно привязывает чат к странице.
+Explicitly binds the current chat to a page.
 
-Нужен, если агент должен продолжить работу на конкретной странице.
+Use it when the agent should continue working on a specific page.
 
 ### `convyy_list_pages`
 
-Возвращает список страниц доски.
+Returns the list of pages in the board.
 
-Нужен, если клиенту нужно сначала выбрать страницу.
+Use it when the client needs to choose a page first.
 
 ### `convyy_revert_last_batch`
 
-Откатывает последний AI batch указанного чата.
+Reverts the latest AI batch for a chat.
 
 ### `convyy_get_runtime_state`
 
-Возвращает текущее runtime-состояние MCP для board.
+Returns the current MCP runtime state for the board.
 
-Полезно для служебных и диагностических сценариев.
+Useful for diagnostic or system scenarios.
 
-## Direct tools
+## Direct Tools
 
-Эти tools доступны отдельно, но в обычном сценарии чаще всего хватает `convyy_run_prompt`.
+These tools are available separately, but in most cases `convyy_run_prompt` is enough.
 
 ### `convyy_create_diagram`
 
-Строит flow / diagram payload.
+Builds a flow or diagram payload.
 
-Подходит для:
+Good for:
 
-- auth flow;
-- onboarding flow;
-- architecture diagram;
-- process flow.
+- auth flows;
+- onboarding flows;
+- architecture diagrams;
+- process flows.
 
 ### `convyy_create_kanban_board`
 
-Строит kanban payload.
+Builds a kanban payload.
 
-Подходит для:
+Good for:
 
-- backlog board;
-- launch board;
-- task board;
-- work stages.
+- backlog boards;
+- launch boards;
+- task boards;
+- work-stage boards.
 
 ### `convyy_fill_board_template`
 
-Подготавливает payload для built-in template.
+Prepares a payload for a built-in template.
 
-Подходит для:
+Good for:
 
 - SWOT;
 - Business Model Canvas;
-- Gantt / roadmap-like template scenarios.
+- roadmap-like template scenarios.
 
 ### `convyy_create_journey_map`
 
-Строит journey map payload.
+Builds a journey map payload.
 
-Подходит для:
+Good for:
 
-- onboarding journey;
-- customer journey;
-- service flow;
-- service blueprint style scenarios.
+- onboarding journeys;
+- customer journeys;
+- service flows;
+- service-blueprint-style scenarios.
 
 ### `convyy_analyze_page_images`
 
-Подготавливает vision-oriented payload по изображениям на странице.
+Prepares a vision-oriented payload from images found on the current page.
 
 ### `convyy_create_board_summary`
 
-Generic fallback tool для обычных summary / structure / draft сценариев.
+Generic fallback tool for summary, structure, and draft-style scenarios.
 
-## Как установить
+## Installation
 
-Если `Convyy MCP` лежит в отдельном git-репозитории:
+Install `Convyy MCP` from its standalone Git repository:
 
 ```bash
-git clone https://github.com/<your-org>/convyy-mcp.git
+git clone https://github.com/divulture/convyy-mcp.git
 cd convyy-mcp
 npm install
 npm run build
 ```
 
-Проверка:
+Verification:
 
 ```bash
 npm run typecheck
 npm run test
 ```
 
-## Как подключить к агентному клиенту
+## Connect It To An MCP Client
 
-После сборки `Convyy MCP` подключается как обычный stdio MCP server.
+After building, `Convyy MCP` can be connected like any other stdio MCP server.
 
-Важно:
+Important:
 
-- сам MCP ставится разработчиком отдельно, из отдельного git-репозитория;
-- сам Convyy открывается отдельно, по адресу домена;
-- MCP не встраивает доску в клиент агента, а дает агенту инструменты для работы с уже открытым Convyy runtime.
+- `Convyy MCP` is distributed as a separate repository and installed separately by the developer;
+- Convyy itself is opened separately at its hosted domain;
+- the MCP server does not embed the board inside the AI client, it gives the agent tools to work with an already opened Convyy runtime.
 
-Пример:
+Example:
 
 ```json
 {
@@ -176,7 +176,7 @@ npm run test
 }
 ```
 
-Если используете опубликованный bin:
+If you publish a binary entrypoint:
 
 ```json
 {
@@ -189,16 +189,14 @@ npm run test
 }
 ```
 
-## Как пользоваться
+## Recommended Usage Flow
 
-Рекомендуемый flow:
+1. call `convyy_list_pages`
+2. call `convyy_bind_chat` if a specific page should be targeted
+3. call `convyy_run_prompt`
+4. call `convyy_revert_last_batch` if the latest AI result should be rolled back
 
-1. агент вызывает `convyy_list_pages`
-2. при необходимости вызывает `convyy_bind_chat`
-3. затем вызывает `convyy_run_prompt`
-4. при необходимости вызывает `convyy_revert_last_batch`
-
-Примеры запросов:
+Example requests:
 
 - `Create a kanban board for launch prep`
 - `Build an onboarding journey map`
@@ -206,21 +204,21 @@ npm run test
 - `Fill a SWOT template for our product`
 - `Analyze this screenshot and build a board summary`
 
-## Что нужно для работы
+## What Is Required For Real Usage
 
-Чтобы агент реально работал с доской, нужны обе части:
+To actually work with a board, both parts are required:
 
-1. открытый Convyy в браузере по адресу домена;
-2. подключенный `Convyy MCP` в агентном клиенте.
+1. Convyy must be open in the browser at its hosted domain;
+2. `Convyy MCP` must be connected in the AI client.
 
-Типовой сценарий такой:
+Typical flow:
 
-1. пользователь открывает Convyy;
-2. пользователь открывает агентный чат;
-3. агент вызывает MCP tools;
-4. результат появляется в текущем Convyy board runtime.
+1. the user opens Convyy;
+2. the user opens an AI chat;
+3. the agent calls MCP tools;
+4. the result appears in the active Convyy board runtime.
 
-## Структура репозитория
+## Repository Structure
 
 ```text
 src/
@@ -233,7 +231,7 @@ src/
 tests/
 ```
 
-## Команды
+## Commands
 
 ```bash
 npm install
