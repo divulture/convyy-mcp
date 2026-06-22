@@ -31,7 +31,7 @@ function decodeFrames(buffer) {
   return JSON.parse(buffer.subarray(bodyStart, bodyEnd).toString("utf8"));
 }
 
-const child = spawn("node", ["dist/server.js"], {
+const child = spawn("node", ["dist/server.js", "--local"], {
   stdio: ["pipe", "pipe", "inherit"],
 });
 

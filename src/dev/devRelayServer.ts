@@ -1,8 +1,10 @@
 import http from "node:http";
 
+import { createDefaultTools } from "../tools/defaultTools";
 import type { JsonRpcRequest, JsonRpcResponse } from "../server/mcpProtocol";
 import { createJsonRpcError, createJsonRpcResult } from "../server/mcpProtocol";
 import { createStdioMessageReader, writeFramedJsonRpcMessage } from "../server/stdioTransport";
+import { buildMcpToolsList } from "../server/toolCatalog";
 import type { RelayPullResponse, RelayPushRequest } from "./relayProtocol";
 import { createRelayQueue } from "./relayQueue";
 
@@ -51,6 +53,7 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
   const port = options.port ?? 4318;
   const requestTimeoutMs = options.requestTimeoutMs ?? 15_000;
   const relayQueue = createRelayQueue();
+  const tools = createDefaultTools();
 
   const server = http.createServer(async (request, response) => {
     if (!request.url || !request.method) {
@@ -128,7 +131,7 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
           },
         },
         serverInfo: {
-          name: "@convyy/mcp-dev-relay",
+          name: "@convyy/mcp",
           version: "0.1.0",
         },
       }));
@@ -141,6 +144,13 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
     }
 
     if (request.method === "notifications/initialized") {
+      return;
+    }
+
+    if (request.method === "tools/list") {
+      writeFramedJsonRpcMessage(createJsonRpcResult(request.id ?? null, {
+        tools: buildMcpToolsList(tools),
+      }));
       return;
     }
 

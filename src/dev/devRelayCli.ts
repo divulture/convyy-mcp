@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { runConvyyMcpDevRelay } from "./devRelayServer";
 
 const nodeProcess = globalThis as typeof globalThis & {
@@ -16,7 +18,7 @@ function getArgValue(args: ReadonlyArray<string>, flag: string): string | null {
   return args[index + 1] ?? null;
 }
 
-export function runDevRelayCli(args: ReadonlyArray<string>): number {
+export function runDevRelayCli(args: ReadonlyArray<string>): number | null {
   if (args.includes("--help")) {
     nodeProcess.process?.stdout.write(
       "Usage: convyy-mcp-dev [--host 127.0.0.1] [--port 4318] [--timeout 15000]\n",
@@ -37,10 +39,15 @@ export function runDevRelayCli(args: ReadonlyArray<string>): number {
   nodeProcess.process?.stdout.write(
     `Convyy MCP dev relay is listening on http://${host}:${Number.isFinite(port) ? port : 4318}\n`,
   );
-  return 0;
+  return null;
 }
 
-if (import.meta.url === `file://${nodeProcess.process?.argv[1] ?? ""}`) {
+const entrypointArg = nodeProcess.process?.argv[1];
+const entrypointUrl = entrypointArg ? pathToFileURL(resolve(entrypointArg)).href : null;
+
+if (entrypointUrl !== null && import.meta.url === entrypointUrl) {
   const exitCode = runDevRelayCli(nodeProcess.process?.argv.slice(2) ?? []);
-  nodeProcess.process?.exit(exitCode);
+  if (typeof exitCode === "number") {
+    nodeProcess.process?.exit(exitCode);
+  }
 }

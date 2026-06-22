@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { runConvyyMcpDevRelay } from "./dev/devRelayServer";
 import type { McpHostAdapter, McpPageContext, McpPageSummary, McpPlacementZone } from "./contracts/hostAdapter";
 import type { McpRuntimeRepository } from "./contracts/runtimeRepository";
 import type { JsonRpcRequest, JsonRpcResponse } from "./server/mcpProtocol";
@@ -8,6 +9,7 @@ import { createStdioMessageReader, writeFramedJsonRpcMessage } from "./server/st
 import { createConvyyMcpService } from "./application/convyyMcpService";
 import { createMemoryRuntimeRepository } from "./runtime/memoryRuntimeRepository";
 import { createDefaultTools } from "./tools/defaultTools";
+import { buildMcpToolsList, DEFAULT_RUNTIME_BOARD_ID, DEFAULT_RUNTIME_SESSION_ID } from "./server/toolCatalog";
 
 const nodeProcess = globalThis as typeof globalThis & {
   process?: {
@@ -102,84 +104,7 @@ export function createConvyyMcpServer(input?: { adapter?: McpHostAdapter; runtim
 
         if (request.method === "tools/list") {
           return createJsonRpcResult(id, {
-            tools: [
-              ...tools.map((tool) => ({
-                name: tool.id,
-                title: tool.title,
-                description: tool.description,
-                inputSchema: tool.inputSchema,
-              })),
-              {
-                name: "convyy_run_prompt",
-                title: "Run Prompt",
-                description: "Resolve follow-up action, select a tool, and commit a board-ready AI batch through the host adapter.",
-                inputSchema: {
-                  type: "object",
-                  properties: {
-                    boardId: { type: "string" },
-                    sessionId: { type: "string" },
-                    prompt: { type: "string" },
-                    locale: { type: "string", enum: ["ru", "en"] },
-                    pageId: { type: ["string", "null"] },
-                    toolId: { type: ["string", "null"] },
-                  },
-                  required: ["boardId", "sessionId", "prompt"],
-                  additionalProperties: false,
-                },
-              },
-              {
-                name: "convyy_bind_session",
-                title: "Bind Session To Page",
-                description: "Bind a runtime session to a specific page.",
-                inputSchema: {
-                  type: "object",
-                  properties: {
-                    boardId: { type: "string" },
-                    sessionId: { type: "string" },
-                    pageId: { type: "string" },
-                  },
-                  required: ["boardId", "sessionId", "pageId"],
-                  additionalProperties: false,
-                },
-              },
-              {
-                name: "convyy_list_pages",
-                title: "List Pages",
-                description: "List pages provided by the host adapter.",
-                inputSchema: {
-                  type: "object",
-                  properties: {},
-                  additionalProperties: false,
-                },
-              },
-              {
-                name: "convyy_revert_last_batch",
-                title: "Revert Last Batch",
-                description: "Revert the last AI batch of a given runtime session.",
-                inputSchema: {
-                  type: "object",
-                  properties: {
-                    boardId: { type: "string" },
-                    sessionId: { type: "string" },
-                  },
-                  required: ["boardId", "sessionId"],
-                  additionalProperties: false,
-                },
-              },
-              {
-                name: "convyy_get_runtime_state",
-                title: "Get Runtime State",
-                description: "Inspect the current MCP runtime state for a board.",
-                inputSchema: {
-                  type: "object",
-                  properties: {
-                    boardId: { type: "string" },
-                  },
-                  required: ["boardId"],
-                  additionalProperties: false,
-                },
-              },
-            ],
+            tools: buildMcpToolsList(tools),
           });
         }
 
@@ -197,11 +122,11 @@ export function createConvyyMcpServer(input?: { adapter?: McpHostAdapter; runtim
           }
 
           if (toolName === "convyy_bind_session") {
-            const boardId = asString(args.boardId);
-            const sessionId = asString(args.sessionId);
+            const boardId = asString(args.boardId) ?? DEFAULT_RUNTIME_BOARD_ID;
+            const sessionId = asString(args.sessionId) ?? DEFAULT_RUNTIME_SESSION_ID;
             const pageId = asString(args.pageId);
-            if (!boardId || !sessionId || !pageId) {
-              return createJsonRpcError(id, -32602, "boardId, sessionId, and pageId are required.");
+            if (!pageId) {
+              return createJsonRpcError(id, -32602, "pageId is required.");
             }
 
             const result = await service.bindSession(boardId, sessionId, pageId);
@@ -209,36 +134,30 @@ export function createConvyyMcpServer(input?: { adapter?: McpHostAdapter; runtim
           }
 
           if (toolName === "convyy_get_runtime_state") {
-            const boardId = asString(args.boardId);
-            if (!boardId) {
-              return createJsonRpcError(id, -32602, "boardId is required.");
-            }
+            const boardId = asString(args.boardId) ?? DEFAULT_RUNTIME_BOARD_ID;
 
             const state = await service.getRuntimeState(boardId);
             return createJsonRpcResult(id, buildTextToolResponse(state, "Returned runtime state."));
           }
 
           if (toolName === "convyy_revert_last_batch") {
-            const boardId = asString(args.boardId);
-            const sessionId = asString(args.sessionId);
-            if (!boardId || !sessionId) {
-              return createJsonRpcError(id, -32602, "boardId and sessionId are required.");
-            }
+            const boardId = asString(args.boardId) ?? DEFAULT_RUNTIME_BOARD_ID;
+            const sessionId = asString(args.sessionId) ?? DEFAULT_RUNTIME_SESSION_ID;
 
             const result = await service.revertLastBatch(boardId, sessionId);
             return createJsonRpcResult(id, buildTextToolResponse(result, result.reverted ? "Reverted last AI batch." : "No AI batch was reverted."));
           }
 
           if (toolName === "convyy_run_prompt") {
-            const boardId = asString(args.boardId);
-            const sessionId = asString(args.sessionId);
+            const boardId = asString(args.boardId) ?? DEFAULT_RUNTIME_BOARD_ID;
+            const sessionId = asString(args.sessionId) ?? DEFAULT_RUNTIME_SESSION_ID;
             const prompt = asString(args.prompt);
             const locale = asString(args.locale) as "ru" | "en" | null;
             const pageId = asNullableString(args.pageId);
             const directToolId = asNullableString(args.toolId);
 
-            if (!boardId || !sessionId || !prompt) {
-              return createJsonRpcError(id, -32602, "boardId, sessionId, and prompt are required.");
+            if (!prompt) {
+              return createJsonRpcError(id, -32602, "prompt is required.");
             }
 
             const result = await service.runPrompt({
@@ -338,6 +257,7 @@ function createDemoHostAdapter(): McpHostAdapter {
 
 export function runCli(args: ReadonlyArray<string>): number | null {
   const useDemoHost = args.includes("--demo");
+  const useLocalMode = args.includes("--local");
   const server = createConvyyMcpServer({
     adapter: useDemoHost ? createDemoHostAdapter() : undefined,
   });
@@ -356,8 +276,24 @@ export function runCli(args: ReadonlyArray<string>): number | null {
   }
 
   if (args.includes("--help")) {
-    nodeProcess.process?.stdout.write("Usage: convyy-mcp [--demo] [--manifest] [--help]\n");
+    nodeProcess.process?.stdout.write("Usage: convyy-mcp [--host 127.0.0.1] [--port 4318] [--timeout 15000] [--local] [--demo] [--manifest] [--help]\n");
     return 0;
+  }
+
+  if (!useLocalMode) {
+    const hostArg = args.indexOf("--host");
+    const portArg = args.indexOf("--port");
+    const timeoutArg = args.indexOf("--timeout");
+    const host = hostArg >= 0 ? args[hostArg + 1] ?? "127.0.0.1" : "127.0.0.1";
+    const port = Number.parseInt(portArg >= 0 ? args[portArg + 1] ?? "4318" : "4318", 10);
+    const timeoutMs = Number.parseInt(timeoutArg >= 0 ? args[timeoutArg + 1] ?? "15000" : "15000", 10);
+
+    runConvyyMcpDevRelay({
+      host,
+      port: Number.isFinite(port) ? port : 4318,
+      requestTimeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : 15000,
+    });
+    return null;
   }
 
   createStdioMessageReader(async (payload) => {

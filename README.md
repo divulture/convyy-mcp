@@ -2,6 +2,15 @@
 
 `Convyy MCP` is a standalone stdio MCP server that lets an AI client operate on an already open Convyy board.
 
+By default, the packaged server starts in relay mode:
+
+- the MCP client talks to `convyy-mcp` over stdio;
+- `convyy-mcp` exposes tools immediately through `tools/list`;
+- the opened Convyy board connects to the local relay at `http://127.0.0.1:4318`;
+- tool calls are forwarded into the live board runtime and committed on the canvas.
+
+`--local` is a fallback debugging mode only. Normal installation should use the default relay mode.
+
 Typical usage:
 
 1. the user opens Convyy in the browser;
@@ -168,6 +177,77 @@ npm run typecheck
 npm run smoke
 npm run test
 ```
+
+`npm run smoke` is a stdio boot/handshake check. It does not prove that the live browser relay is already attached to an open board.
+
+## Agent Install Contract
+
+This section is for agents. Follow it exactly.
+
+### Allowed install flow
+
+1. run `npm install`
+2. run `npm run build`
+3. run `npm run smoke`
+4. register the server in the MCP client config
+5. reconnect or restart the MCP client
+6. verify `tools/list`
+
+### Stop conditions
+
+Stop and report the exact failing step if any of these fail:
+
+- `npm install`
+- `npm run build`
+- `npm run smoke`
+- MCP client reconnect
+- `tools/list`
+
+Do not continue to later steps after an earlier step fails.
+
+### Required evidence before claiming success
+
+An agent may only claim that `Convyy MCP` is installed correctly if all of these are true:
+
+- `npm run build` succeeded
+- `npm run smoke` succeeded
+- the MCP client was configured to launch `node ./dist/server.js` or `convyy-mcp`
+- an open Convyy board is running in the browser and can reach `http://127.0.0.1:4318`
+- after reconnect, `tools/list` exposes `convyy_*` tools
+
+### Forbidden behavior for agents
+
+Do not do any of the following:
+
+- do not use slash commands such as `/convyy_list_pages`
+- do not use `ToolSearch` as the primary proof that installation worked
+- do not wait and retry blindly for long periods
+- do not rewrite transport framing based on a failed ad hoc handshake test
+- do not modify server code before `npm run smoke` fails with a reproducible error
+- do not diagnose MCP transport by guessing protocol details from memory
+- do not treat missing Claude/Codex CLI binaries as proof that the MCP server is broken
+- do not mix server build/debug work with client registration work in the same conclusion
+
+### Correct diagnostic order
+
+If installation does not work, diagnose in this order only:
+
+1. `npm run build`
+2. `npm run smoke`
+3. check MCP client config
+4. reconnect MCP client
+5. verify `tools/list`
+
+If `npm run smoke` passes, do not claim that `stdioTransport` is broken without a new direct reproduction.
+
+### Correct conclusion templates
+
+Use only one of these conclusion shapes:
+
+- `Build failed at step X with error Y. MCP is not ready to register yet.`
+- `Smoke failed at step X with error Y. MCP server starts incorrectly.`
+- `Build and smoke passed, but MCP client still does not expose tools. The remaining problem is client registration or reconnect state.`
+- `Build, smoke, reconnect, and tools/list passed. MCP is installed correctly.`
 
 ## Connect It To An MCP Client
 
