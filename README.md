@@ -19,6 +19,12 @@ Typical usage:
 4. the agent calls those tools;
 5. the result appears on the board.
 
+Hosted board note:
+
+- the hosted board at `https://whiteboard-sepia.vercel.app/` now shows an MCP relay diagnostics panel in the shell;
+- use that panel to distinguish `disabled`, `connecting`, `healthy`, and `failing` relay states;
+- if the AI client exposes tools but nothing appears on the board, trust the diagnostics panel before guessing about MCP transport internals.
+
 ## Critical Rules
 
 These rules are not optional.
@@ -214,6 +220,7 @@ An agent may only claim that `Convyy MCP` is installed correctly if all of these
 - the MCP client was configured to launch `node ./dist/server.js` or `convyy-mcp`
 - an open Convyy board is running in the browser and can reach `http://127.0.0.1:4318`
 - after reconnect, `tools/list` exposes `convyy_*` tools
+- the hosted board diagnostics panel reports `healthy`, or an equivalent successful relay state is directly confirmed
 
 ### Forbidden behavior for agents
 
@@ -365,6 +372,18 @@ Correct action:
 3. verify `tools/list` returns `convyy_*` tools;
 4. only then diagnose client-specific discovery issues.
 
+### Symptom: `tools/list` works, but nothing appears on `whiteboard-sepia.vercel.app`
+
+This usually means MCP registration is fine and the remaining problem is the board-to-relay path.
+
+Check in this order:
+
+1. confirm the board shell diagnostics panel is not `disabled`;
+2. confirm it reaches `healthy` rather than staying `connecting` or `failing`;
+3. confirm the local relay is actually listening on `127.0.0.1:4318`;
+4. confirm the server was not launched with `--local`;
+5. only after that inspect prompt or tool behavior.
+
 ### Symptom: the agent creates a conversation panel inside the board
 
 This is an integration bug.
@@ -388,6 +407,26 @@ Typical flow:
 2. the user opens an AI conversation in the MCP client;
 3. the agent calls MCP tools;
 4. the result appears in the active Convyy board runtime.
+
+For the hosted board flow, also confirm the diagnostics panel state:
+
+- `disabled`: relay polling is turned off for this board session, so MCP output will never reach the board;
+- `connecting`: the board is polling but has not yet established a healthy relay cycle;
+- `healthy`: the board is attached to the local relay and ready to receive tool output;
+- `failing`: the board cannot currently complete relay requests; restart the local relay or reconnect the MCP client before blaming the tool layer.
+
+## Hosted Board Quick Check
+
+Use this exact order when the target is `https://whiteboard-sepia.vercel.app/`:
+
+1. open the hosted board in the browser;
+2. verify the shell diagnostics panel is present;
+3. start `Convyy MCP` normally, without `--local`;
+4. reconnect Claude/Codex so `tools/list` exposes `convyy_*` tools;
+5. confirm the diagnostics panel becomes `healthy`;
+6. only then call `convyy_run_prompt` or a direct `convyy_*` tool.
+
+If step 4 works but step 5 does not, the remaining problem is board-to-relay connectivity, not MCP tool registration.
 
 ## Repository Structure
 

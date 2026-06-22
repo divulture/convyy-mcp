@@ -77,4 +77,26 @@ describe("convyyMcpService", () => {
     expect(result.followUpAction.type).toBe("new-page");
     expect(result.page.id).toBe("page-2");
   });
+
+  it("binds to a named page when the prompt targets one", async () => {
+    const service = createConvyyMcpService({
+      adapter: createTestAdapter(),
+      runtimeRepository: createMemoryRuntimeRepository(),
+      tools: createDefaultTools(),
+    });
+
+    const result = await service.runPrompt({
+      boardId: "board-1",
+      sessionId: "session-1",
+      prompt: 'Go to page "Main" and create a kanban board for launch prep',
+    });
+
+    expect(result.followUpAction).toEqual({
+      type: "bind-page",
+      targetPageId: undefined,
+      targetPageName: "Main",
+    });
+    expect(result.page.id).toBe("page-1");
+    expect(result.committed).toBe(true);
+  });
 });

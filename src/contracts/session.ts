@@ -2,6 +2,7 @@ export type McpFollowUpActionType = "append" | "replace-last-batch" | "undo-last
 
 export interface McpFollowUpAction {
   type: McpFollowUpActionType;
+  targetPageId?: string;
   targetPageName?: string | null;
 }
 
