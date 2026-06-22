@@ -38,6 +38,7 @@ function writeJson(response: http.ServerResponse, statusCode: number, payload: u
     "Content-Length": Buffer.byteLength(body, "utf8"),
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Private-Network": "true",
   });
   response.end(body);
 }
@@ -66,6 +67,10 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type",
         "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+        // Chrome's Private Network Access requires this on the preflight when a
+        // public HTTPS origin (the hosted board) calls a loopback relay.
+        "Access-Control-Allow-Private-Network": "true",
+        "Access-Control-Max-Age": "86400",
       });
       response.end();
       return;

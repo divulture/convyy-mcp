@@ -10,56 +10,37 @@ const nodeProcess = globalThis as typeof globalThis & {
   };
 };
 
-function encodeFrame(payload: string): Uint8Array {
-  const body = encoder.encode(payload);
-  const header = encoder.encode(`Content-Length: ${body.byteLength}\r\n\r\n`);
-  const framed = new Uint8Array(header.byteLength + body.byteLength);
-  framed.set(header, 0);
-  framed.set(body, header.byteLength);
-  return framed;
-}
-
+// The MCP stdio transport frames each JSON-RPC message as a single line of
+// JSON terminated by a newline. Messages must not contain embedded newlines,
+// which JSON.stringify already guarantees. This is intentionally NOT the
+// LSP-style `Content-Length` framing — MCP clients (Claude, Codex, Cursor,
+// Cline) speak newline-delimited JSON and will not complete the handshake
+// against Content-Length frames.
 export function writeFramedJsonRpcMessage(response: JsonRpcResponse): void {
-  nodeProcess.process?.stdout.write(encodeFrame(JSON.stringify(response)));
+  nodeProcess.process?.stdout.write(encoder.encode(`${JSON.stringify(response)}\n`));
 }
 
 export function createStdioMessageReader(onMessage: (payload: unknown) => void): void {
-  let buffer = new Uint8Array(0);
+  let buffer = "";
 
   nodeProcess.process?.stdin.on("data", (chunk: Uint8Array) => {
-    const next = new Uint8Array(buffer.byteLength + chunk.byteLength);
-    next.set(buffer, 0);
-    next.set(chunk, buffer.byteLength);
-    buffer = next;
+    buffer += decoder.decode(chunk, { stream: true });
 
-    while (true) {
-      const headerEnd = decoder.decode(buffer).indexOf("\r\n\r\n");
-      if (headerEnd === -1) {
-        return;
+    let newlineIndex = buffer.indexOf("\n");
+    while (newlineIndex !== -1) {
+      const line = buffer.slice(0, newlineIndex).trim();
+      buffer = buffer.slice(newlineIndex + 1);
+
+      if (line.length > 0) {
+        try {
+          onMessage(JSON.parse(line) as unknown);
+        } catch {
+          // Ignore malformed lines; a partial or non-JSON line should not
+          // tear down the transport.
+        }
       }
 
-      const headerText = decoder.decode(buffer.subarray(0, headerEnd));
-      const lengthLine = headerText
-        .split("\r\n")
-        .map((line: string) => line.trim())
-        .find((line: string) => line.toLowerCase().startsWith("content-length:"));
-
-      if (!lengthLine) {
-        buffer = buffer.subarray(headerEnd + 4);
-        continue;
-      }
-
-      const contentLength = Number.parseInt(lengthLine.split(":")[1]?.trim() ?? "", 10);
-      const bodyStart = headerEnd + 4;
-      const bodyEnd = bodyStart + contentLength;
-
-      if (!Number.isFinite(contentLength) || buffer.byteLength < bodyEnd) {
-        return;
-      }
-
-      const bodyText = decoder.decode(buffer.subarray(bodyStart, bodyEnd));
-      buffer = buffer.subarray(bodyEnd);
-      onMessage(JSON.parse(bodyText) as unknown);
+      newlineIndex = buffer.indexOf("\n");
     }
   });
 }

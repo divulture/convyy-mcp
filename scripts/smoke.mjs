@@ -1,41 +1,15 @@
 import { spawn } from "node:child_process";
 
+// MCP stdio framing: one JSON-RPC message per line, terminated by "\n".
 function encodeFrame(message) {
-  const body = Buffer.from(JSON.stringify(message), "utf8");
-  return Buffer.concat([
-    Buffer.from(`Content-Length: ${body.length}\r\n\r\n`, "utf8"),
-    body,
-  ]);
-}
-
-function decodeFrames(buffer) {
-  const text = buffer.toString("utf8");
-  const headerEnd = text.indexOf("\r\n\r\n");
-  if (headerEnd < 0) {
-    return null;
-  }
-
-  const header = text.slice(0, headerEnd);
-  const match = header.match(/Content-Length:\s*(\d+)/i);
-  if (!match) {
-    throw new Error("Missing Content-Length header in smoke response.");
-  }
-
-  const bodyLength = Number(match[1]);
-  const bodyStart = headerEnd + 4;
-  const bodyEnd = bodyStart + bodyLength;
-  if (buffer.length < bodyEnd) {
-    return null;
-  }
-
-  return JSON.parse(buffer.subarray(bodyStart, bodyEnd).toString("utf8"));
+  return Buffer.from(`${JSON.stringify(message)}\n`, "utf8");
 }
 
 const child = spawn("node", ["dist/server.js", "--local"], {
   stdio: ["pipe", "pipe", "inherit"],
 });
 
-const chunks = [];
+let buffer = "";
 let settled = false;
 
 function finish(code) {
@@ -53,22 +27,39 @@ const timeout = setTimeout(() => {
 }, 5000);
 
 child.stdout.on("data", (chunk) => {
-  chunks.push(chunk);
-  const message = decodeFrames(Buffer.concat(chunks));
-  if (!message) {
+  buffer += chunk.toString("utf8");
+
+  let newlineIndex = buffer.indexOf("\n");
+  while (newlineIndex !== -1) {
+    const line = buffer.slice(0, newlineIndex).trim();
+    buffer = buffer.slice(newlineIndex + 1);
+    newlineIndex = buffer.indexOf("\n");
+
+    if (!line) {
+      continue;
+    }
+
+    let message;
+    try {
+      message = JSON.parse(line);
+    } catch {
+      console.error("Smoke check received a non-JSON line.");
+      finish(1);
+      return;
+    }
+
+    clearTimeout(timeout);
+
+    if (message.jsonrpc !== "2.0" || message.id !== 1 || !message.result?.serverInfo?.name) {
+      console.error("Smoke check received an invalid MCP response.");
+      finish(1);
+      return;
+    }
+
+    console.log(`OK ${message.result.serverInfo.name}@${message.result.serverInfo.version}`);
+    finish(0);
     return;
   }
-
-  clearTimeout(timeout);
-
-  if (message.jsonrpc !== "2.0" || message.id !== 1 || !message.result?.serverInfo?.name) {
-    console.error("Smoke check received an invalid MCP response.");
-    finish(1);
-    return;
-  }
-
-  console.log(`OK ${message.result.serverInfo.name}@${message.result.serverInfo.version}`);
-  finish(0);
 });
 
 child.on("exit", (code) => {
