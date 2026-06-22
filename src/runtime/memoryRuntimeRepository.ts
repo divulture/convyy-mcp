@@ -11,7 +11,7 @@ export function createMemoryRuntimeRepository(): McpRuntimeRepository {
     async save(state) {
       states.set(state.boardId, {
         boardId: state.boardId,
-        activeGenerationChatId: state.activeGenerationChatId,
+        activeGenerationSessionId: state.activeGenerationSessionId,
         bindings: state.bindings.map((binding) => ({ ...binding })),
       });
     },

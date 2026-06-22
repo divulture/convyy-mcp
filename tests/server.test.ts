@@ -77,7 +77,7 @@ describe("server", () => {
         name: "convyy_run_prompt",
         arguments: {
           boardId: "board-1",
-          chatId: "chat-1",
+          sessionId: "session-1",
           prompt: "create a kanban board",
         },
       },

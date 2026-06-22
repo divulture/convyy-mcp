@@ -1,13 +1,28 @@
 # Convyy MCP
 
-`Convyy MCP` is a standalone MCP server that lets AI clients work with Convyy boards.
+`Convyy MCP` is a standalone stdio MCP server that lets an AI client operate on an already open Convyy board.
 
-Typical usage looks like this:
+Typical usage:
 
-1. a user opens Convyy in the browser at the hosted domain;
-2. a user connects `Convyy MCP` in Claude, Codex, Cursor, Cline, or another MCP client;
-3. the agent gets access to Convyy board tools;
-4. the agent works with the board through MCP tools.
+1. the user opens Convyy in the browser;
+2. the user connects `Convyy MCP` in Codex, Claude, Cursor, Cline, or another MCP client;
+3. the agent receives MCP tools;
+4. the agent calls those tools;
+5. the result appears on the board.
+
+## Critical Rules
+
+These rules are not optional.
+
+- `Convyy MCP` exposes MCP tools, not slash commands.
+- Do not try to run `/convyy_list_pages` or any other `/convyy_*` command in the MCP client input.
+- The correct protocol is `initialize` -> `tools/list` -> `tools/call`.
+- Convyy board interaction must happen through MCP tools only.
+- Do not render or mount an agent conversation UI inside the board.
+- The user talks to Codex/Claude; the board is only the result surface.
+- `sessionId` is a technical runtime/session identifier for batch ownership and rollback. It is not a signal to build an in-board conversation experience.
+- `Unknown command` from a slash-command attempt does not prove that the MCP server is broken.
+- `ToolSearch` failing to surface tools does not by itself prove that the MCP server is broken.
 
 ## What It Is For
 
@@ -16,17 +31,17 @@ Typical usage looks like this:
 Through this MCP server, an agent can:
 
 - read page context;
-- understand which page the chat is bound to;
+- understand which page the runtime session is bound to;
 - create new AI-owned board content;
 - commit each AI response as a separate batch;
-- replace or revert only the latest AI batch for the current chat;
+- replace or revert only the latest AI batch for the current runtime session;
 - choose a follow-up action such as `append`, `replace-last-batch`, `undo-last-batch`, `new-page`, or `bind-page`.
 
 ## Current Capabilities
 
 The current MCP server includes:
 
-- runtime state for chat-to-page bindings;
+- runtime state for session-to-page bindings;
 - a one-active-generation gate per board runtime;
 - follow-up action resolution;
 - stdio MCP transport with `initialize`, `ping`, `tools/list`, and `tools/call`;
@@ -40,7 +55,7 @@ The current MVP is intentionally constrained:
 - the agent does not edit existing user-created objects;
 - the agent only adds new AI-owned content;
 - every AI response becomes a separate batch;
-- undo and replace only work for the latest AI batch of the current chat;
+- undo and replace only work for the latest AI batch of the current runtime session;
 - board-specific side effects go through the controlled Convyy runtime layer.
 
 ## Main Tools
@@ -58,9 +73,9 @@ It:
 
 Use this by default unless you specifically need to call a specialized tool directly.
 
-### `convyy_bind_chat`
+### `convyy_bind_session`
 
-Explicitly binds the current chat to a page.
+Explicitly binds the current runtime session to a page.
 
 Use it when the agent should continue working on a specific page.
 
@@ -72,7 +87,7 @@ Use it when the client needs to choose a page first.
 
 ### `convyy_revert_last_batch`
 
-Reverts the latest AI batch for a chat.
+Reverts the latest AI batch for a runtime session.
 
 ### `convyy_get_runtime_state`
 
@@ -161,7 +176,9 @@ Important:
 
 - `Convyy MCP` is distributed as a separate repository and installed separately by the developer;
 - Convyy itself is opened separately at its hosted domain;
-- the MCP server does not embed the board inside the AI client, it gives the agent tools to work with an already opened Convyy runtime.
+- the MCP server does not embed the board inside the AI client;
+- the MCP server does not create a board-local conversation UI;
+- it gives the agent tools to work with an already opened Convyy runtime.
 
 Example:
 
@@ -191,10 +208,13 @@ If you publish a binary entrypoint:
 
 ## Recommended Usage Flow
 
-1. call `convyy_list_pages`
-2. call `convyy_bind_chat` if a specific page should be targeted
-3. call `convyy_run_prompt`
-4. call `convyy_revert_last_batch` if the latest AI result should be rolled back
+1. establish a normal MCP session with `initialize`
+2. call `tools/list`
+3. confirm that `convyy_*` tools are actually present
+4. call `convyy_list_pages`
+5. call `convyy_bind_session` if a specific page should be targeted
+6. call `convyy_run_prompt`
+7. call `convyy_revert_last_batch` if the latest AI result should be rolled back
 
 Example requests:
 
@@ -203,6 +223,69 @@ Example requests:
 - `Create an auth flow diagram`
 - `Fill a SWOT template for our product`
 - `Analyze this screenshot and build a board summary`
+
+## What Not To Do
+
+Do not do any of the following:
+
+- do not call `/convyy_list_pages`
+- do not treat MCP tool names as slash commands
+- do not conclude "server is broken" only because a slash command failed
+- do not conclude "server is broken" only because search did not surface tools yet
+- do not build or show a board-local conversation panel
+- do not route user interaction through a board-side input box
+- do not use the board as the conversation surface
+
+## Minimal Verification
+
+If you need to verify that the MCP server is healthy, use this order:
+
+1. start the stdio server process
+2. send `initialize`
+3. send `tools/list`
+4. verify that `convyy_run_prompt`, `convyy_list_pages`, `convyy_bind_session`, `convyy_revert_last_batch`, and `convyy_get_runtime_state` are present
+5. only then start normal tool calls
+
+If `tools/list` returns Convyy tools, the server is up. At that point, a failed slash command is irrelevant.
+
+## Troubleshooting
+
+### Symptom: `Unknown command: /convyy_list_pages`
+
+This is a caller error, not evidence of MCP failure.
+
+Reason:
+
+- `/convyy_list_pages` is not a supported slash command;
+- `convyy_list_pages` is an MCP tool name and must be called through `tools/call`.
+
+### Symptom: search does not show any `convyy` tools
+
+This is inconclusive on its own.
+
+Possible causes:
+
+- the MCP client has not finished initialization;
+- the client is searching the wrong registry/path;
+- the session has not completed `initialize` or `tools/list`;
+- the tool-discovery UI is delayed or filtered.
+
+Correct action:
+
+1. verify the server process starts;
+2. verify `initialize` succeeds;
+3. verify `tools/list` returns `convyy_*` tools;
+4. only then diagnose client-specific discovery issues.
+
+### Symptom: the agent creates a conversation panel inside the board
+
+This is an integration bug.
+
+Correct model:
+
+- user interaction belongs in Codex/Claude;
+- Convyy is a visual output surface;
+- MCP writes results to the board, but the board is not the conversation UI.
 
 ## What Is Required For Real Usage
 
@@ -214,7 +297,7 @@ To actually work with a board, both parts are required:
 Typical flow:
 
 1. the user opens Convyy;
-2. the user opens an AI chat;
+2. the user opens an AI conversation in the MCP client;
 3. the agent calls MCP tools;
 4. the result appears in the active Convyy board runtime.
 

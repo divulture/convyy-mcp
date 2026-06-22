@@ -9,7 +9,7 @@ import { resolveFollowUpActionFromPrompt } from "../orchestration/followUpAction
 
 export interface RunPromptInput {
   boardId: string;
-  chatId: string;
+  sessionId: string;
   prompt: string;
   locale?: "ru" | "en";
   pageId?: string | null;
@@ -75,11 +75,11 @@ export function createConvyyMcpService(input: {
     prompt: string,
     explicitPageId: string | null | undefined,
     locale: "ru" | "en",
-    chatId: string,
+    sessionId: string,
   ): Promise<McpPageSummary> {
     if (action.type === "new-page") {
       const page = await adapter.createPage(derivePageName(prompt, locale));
-      machine.bindChat(chatId, page.id, null);
+      machine.bindSession(sessionId, page.id, null);
       return page;
     }
 
@@ -88,7 +88,7 @@ export function createConvyyMcpService(input: {
       if (!matched) {
         throw new Error("Could not find a page for bind-page action.");
       }
-      machine.bindChat(chatId, matched.id, null);
+      machine.bindSession(sessionId, matched.id, null);
       return matched;
     }
 
@@ -99,7 +99,7 @@ export function createConvyyMcpService(input: {
       }
     }
 
-    const binding = machine.getState().bindings.find((item) => item.chatId === chatId) ?? null;
+    const binding = machine.getState().bindings.find((item) => item.sessionId === sessionId) ?? null;
     if (binding?.currentPageId) {
       const boundPage = pages.find((page) => page.id === binding.currentPageId);
       if (boundPage) {
@@ -108,7 +108,7 @@ export function createConvyyMcpService(input: {
     }
 
     const fallback = pages[0] ?? await adapter.createPage(locale === "ru" ? "AI страница" : "AI Page");
-    machine.bindChat(chatId, fallback.id, binding?.lastBatchId ?? null);
+    machine.bindSession(sessionId, fallback.id, binding?.lastBatchId ?? null);
     return fallback;
   }
 
@@ -117,7 +117,7 @@ export function createConvyyMcpService(input: {
       return adapter.listPages();
     },
 
-    async bindChat(boardId: string, chatId: string, pageId: string) {
+    async bindSession(boardId: string, sessionId: string, pageId: string) {
       const pages = await adapter.listPages();
       const page = pages.find((item) => item.id === pageId);
       if (!page) {
@@ -125,7 +125,7 @@ export function createConvyyMcpService(input: {
       }
 
       const machine = await loadMachine(boardId);
-      machine.bindChat(chatId, page.id, null);
+      machine.bindSession(sessionId, page.id, null);
       await persistMachine(machine);
 
       return { page };
@@ -135,11 +135,11 @@ export function createConvyyMcpService(input: {
       return (await runtimeRepository.load(boardId)) ?? createEmptyMcpRuntimeState(boardId);
     },
 
-    async revertLastBatch(boardId: string, chatId: string) {
+    async revertLastBatch(boardId: string, sessionId: string) {
       const machine = await loadMachine(boardId);
-      const reverted = await adapter.revertLastBatch(chatId);
+      const reverted = await adapter.revertLastBatch(sessionId);
       if (reverted) {
-        machine.setLastBatchId(chatId, null);
+        machine.setLastBatchId(sessionId, null);
         await persistMachine(machine);
       }
       return { reverted };
@@ -148,7 +148,7 @@ export function createConvyyMcpService(input: {
     async runPrompt(runInput: RunPromptInput): Promise<RunPromptResult> {
       const locale = runInput.locale ?? "en";
       const machine = await loadMachine(runInput.boardId);
-      const start = machine.startGeneration(runInput.chatId);
+      const start = machine.startGeneration(runInput.sessionId);
       if (!start.ok) {
         throw new Error("Another generation is already running for this board runtime.");
       }
@@ -163,10 +163,10 @@ export function createConvyyMcpService(input: {
           runInput.prompt,
           runInput.pageId,
           locale,
-          runInput.chatId,
+          runInput.sessionId,
         );
 
-        const binding = machine.getState().bindings.find((item) => item.chatId === runInput.chatId) ?? null;
+        const binding = machine.getState().bindings.find((item) => item.sessionId === runInput.sessionId) ?? null;
         const selectedTool =
           (runInput.toolId ? registry.listTools().find((tool) => tool.id === runInput.toolId) : null) ??
           registry.resolveTool(runInput.prompt);
@@ -176,14 +176,14 @@ export function createConvyyMcpService(input: {
         }
 
         if (action.type === "replace-last-batch" && binding?.lastBatchId) {
-          await adapter.revertLastBatch(runInput.chatId);
-          machine.setLastBatchId(runInput.chatId, null);
+          await adapter.revertLastBatch(runInput.sessionId);
+          machine.setLastBatchId(runInput.sessionId, null);
         }
 
         if (action.type === "undo-last-batch") {
-          const reverted = await adapter.revertLastBatch(runInput.chatId);
+          const reverted = await adapter.revertLastBatch(runInput.sessionId);
           if (reverted) {
-            machine.setLastBatchId(runInput.chatId, null);
+            machine.setLastBatchId(runInput.sessionId, null);
           }
           await persistMachine(machine);
 
@@ -199,7 +199,7 @@ export function createConvyyMcpService(input: {
         }
 
         const toolResult = await selectedTool.execute({
-          chatId: runInput.chatId,
+          sessionId: runInput.sessionId,
           prompt: runInput.prompt,
           locale,
           boundPageId: page.id,
@@ -207,13 +207,13 @@ export function createConvyyMcpService(input: {
         });
 
         const commit = await adapter.commitBatch({
-          chatId: runInput.chatId,
+          sessionId: runInput.sessionId,
           pageId: page.id,
           toolId: selectedTool.id,
           payload: toolResult.payload,
         });
 
-        machine.bindChat(runInput.chatId, page.id, commit.batchId);
+        machine.bindSession(runInput.sessionId, page.id, commit.batchId);
         await persistMachine(machine);
 
         return {
@@ -226,7 +226,7 @@ export function createConvyyMcpService(input: {
           committed: true,
         };
       } finally {
-        machine.finishGeneration(runInput.chatId);
+        machine.finishGeneration(runInput.sessionId);
         await persistMachine(machine);
       }
     },

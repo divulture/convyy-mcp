@@ -7,7 +7,7 @@ import type { McpHostAdapter } from "../src/contracts/hostAdapter";
 
 function createTestAdapter(): McpHostAdapter {
   const pages = [{ id: "page-1", name: "Main" }];
-  const committed: Array<{ chatId: string; pageId: string; toolId: string; payload: unknown }> = [];
+  const committed: Array<{ sessionId: string; pageId: string; toolId: string; payload: unknown }> = [];
   let batchCounter = 0;
 
   return {
@@ -52,7 +52,7 @@ describe("convyyMcpService", () => {
 
     const result = await service.runPrompt({
       boardId: "board-1",
-      chatId: "chat-1",
+      sessionId: "session-1",
       prompt: "create a kanban board for launch prep",
     });
 
@@ -70,7 +70,7 @@ describe("convyyMcpService", () => {
 
     const result = await service.runPrompt({
       boardId: "board-1",
-      chatId: "chat-1",
+      sessionId: "session-1",
       prompt: "сделай это на новой странице: build onboarding journey map",
     });
 

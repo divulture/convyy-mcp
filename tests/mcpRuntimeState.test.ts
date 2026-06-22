@@ -10,7 +10,7 @@ describe("mcpRuntimeState", () => {
   it("creates an empty runtime state for a board", () => {
     expect(createEmptyMcpRuntimeState("board-1")).toEqual({
       boardId: "board-1",
-      activeGenerationChatId: null,
+      activeGenerationSessionId: null,
       bindings: [],
     });
   });
@@ -18,26 +18,26 @@ describe("mcpRuntimeState", () => {
   it("normalizes parsed payloads without trusting persisted boardId", () => {
     const value = {
       boardId: "other-board",
-      activeGenerationChatId: "chat-1",
+      activeGenerationSessionId: "session-1",
       bindings: [
         {
-          chatId: "chat-1",
+          sessionId: "session-1",
           currentPageId: "page-1",
           lastBatchId: "batch-1",
           lastBoundAt: 123,
         },
         {
-          chatId: 42,
+          sessionId: 42,
         },
       ],
     };
 
     expect(normalizeMcpRuntimeState("board-1", value)).toEqual({
       boardId: "board-1",
-      activeGenerationChatId: "chat-1",
+      activeGenerationSessionId: "session-1",
       bindings: [
         {
-          chatId: "chat-1",
+          sessionId: "session-1",
           currentPageId: "page-1",
           lastBatchId: "batch-1",
           lastBoundAt: 123,
@@ -49,10 +49,10 @@ describe("mcpRuntimeState", () => {
   it("serializes only session runtime fields", () => {
     const state = {
       boardId: "board-1",
-      activeGenerationChatId: "chat-1",
+      activeGenerationSessionId: "session-1",
       bindings: [
         {
-          chatId: "chat-1",
+          sessionId: "session-1",
           currentPageId: "page-1",
           lastBatchId: "batch-1",
           lastBoundAt: 123,
@@ -61,10 +61,10 @@ describe("mcpRuntimeState", () => {
     };
 
     expect(JSON.parse(serializeMcpRuntimeState(state))).toEqual({
-      activeGenerationChatId: "chat-1",
+      activeGenerationSessionId: "session-1",
       bindings: [
         {
-          chatId: "chat-1",
+          sessionId: "session-1",
           currentPageId: "page-1",
           lastBatchId: "batch-1",
           lastBoundAt: 123,

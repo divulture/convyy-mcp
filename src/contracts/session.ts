@@ -6,7 +6,7 @@ export interface McpFollowUpAction {
 }
 
 export interface McpToolExecutionContext {
-  chatId: string;
+  sessionId: string;
   prompt: string;
   locale?: "ru" | "en";
   boundPageId: string | null;

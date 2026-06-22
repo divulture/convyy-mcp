@@ -1,4 +1,4 @@
-import type { McpChatSessionBinding, McpRuntimeState } from "../runtime/mcpRuntimeState";
+import type { McpSessionBinding, McpRuntimeState } from "../runtime/mcpRuntimeState";
 
 export interface StartGenerationResult {
   ok: boolean;
@@ -7,17 +7,17 @@ export interface StartGenerationResult {
 
 export interface McpSessionMachine {
   getState(): McpRuntimeState;
-  bindChat(chatId: string, pageId: string | null, lastBatchId?: string | null): void;
-  setLastBatchId(chatId: string, lastBatchId: string | null): void;
-  startGeneration(chatId: string): StartGenerationResult;
-  finishGeneration(chatId: string): void;
+  bindSession(sessionId: string, pageId: string | null, lastBatchId?: string | null): void;
+  setLastBatchId(sessionId: string, lastBatchId: string | null): void;
+  startGeneration(sessionId: string): StartGenerationResult;
+  finishGeneration(sessionId: string): void;
 }
 
 function upsertBinding(
-  bindings: ReadonlyArray<McpChatSessionBinding>,
-  nextBinding: McpChatSessionBinding,
-): McpChatSessionBinding[] {
-  const index = bindings.findIndex((binding) => binding.chatId === nextBinding.chatId);
+  bindings: ReadonlyArray<McpSessionBinding>,
+  nextBinding: McpSessionBinding,
+): McpSessionBinding[] {
+  const index = bindings.findIndex((binding) => binding.sessionId === nextBinding.sessionId);
   if (index === -1) {
     return [...bindings, nextBinding];
   }
@@ -28,7 +28,7 @@ function upsertBinding(
 export function createMcpSessionMachine(initialState: McpRuntimeState): McpSessionMachine {
   let state: McpRuntimeState = {
     boardId: initialState.boardId,
-    activeGenerationChatId: initialState.activeGenerationChatId,
+    activeGenerationSessionId: initialState.activeGenerationSessionId,
     bindings: [...initialState.bindings],
   };
 
@@ -37,11 +37,11 @@ export function createMcpSessionMachine(initialState: McpRuntimeState): McpSessi
       return state;
     },
 
-    bindChat(chatId, pageId, lastBatchId = null) {
+    bindSession(sessionId, pageId, lastBatchId = null) {
       state = {
         ...state,
         bindings: upsertBinding(state.bindings, {
-          chatId,
+          sessionId,
           currentPageId: pageId,
           lastBatchId,
           lastBoundAt: Date.now(),
@@ -49,8 +49,8 @@ export function createMcpSessionMachine(initialState: McpRuntimeState): McpSessi
       };
     },
 
-    setLastBatchId(chatId, lastBatchId) {
-      const existing = state.bindings.find((binding: McpChatSessionBinding) => binding.chatId === chatId);
+    setLastBatchId(sessionId, lastBatchId) {
+      const existing = state.bindings.find((binding: McpSessionBinding) => binding.sessionId === sessionId);
       if (!existing) {
         return;
       }
@@ -64,26 +64,26 @@ export function createMcpSessionMachine(initialState: McpRuntimeState): McpSessi
       };
     },
 
-    startGeneration(chatId) {
-      if (state.activeGenerationChatId !== null && state.activeGenerationChatId !== chatId) {
+    startGeneration(sessionId) {
+      if (state.activeGenerationSessionId !== null && state.activeGenerationSessionId !== sessionId) {
         return { ok: false, reason: "already-running" };
       }
 
       state = {
         ...state,
-        activeGenerationChatId: chatId,
+        activeGenerationSessionId: sessionId,
       };
       return { ok: true, reason: "started" };
     },
 
-    finishGeneration(chatId) {
-      if (state.activeGenerationChatId !== chatId) {
+    finishGeneration(sessionId) {
+      if (state.activeGenerationSessionId !== sessionId) {
         return;
       }
 
       state = {
         ...state,
-        activeGenerationChatId: null,
+        activeGenerationSessionId: null,
       };
     },
   };

@@ -115,28 +115,28 @@ export function createConvyyMcpServer(input?: { adapter?: McpHostAdapter; runtim
                   type: "object",
                   properties: {
                     boardId: { type: "string" },
-                    chatId: { type: "string" },
+                    sessionId: { type: "string" },
                     prompt: { type: "string" },
                     locale: { type: "string", enum: ["ru", "en"] },
                     pageId: { type: ["string", "null"] },
                     toolId: { type: ["string", "null"] },
                   },
-                  required: ["boardId", "chatId", "prompt"],
+                  required: ["boardId", "sessionId", "prompt"],
                   additionalProperties: false,
                 },
               },
               {
-                name: "convyy_bind_chat",
-                title: "Bind Chat To Page",
-                description: "Bind a chat session to a specific page.",
+                name: "convyy_bind_session",
+                title: "Bind Session To Page",
+                description: "Bind a runtime session to a specific page.",
                 inputSchema: {
                   type: "object",
                   properties: {
                     boardId: { type: "string" },
-                    chatId: { type: "string" },
+                    sessionId: { type: "string" },
                     pageId: { type: "string" },
                   },
-                  required: ["boardId", "chatId", "pageId"],
+                  required: ["boardId", "sessionId", "pageId"],
                   additionalProperties: false,
                 },
               },
@@ -153,14 +153,14 @@ export function createConvyyMcpServer(input?: { adapter?: McpHostAdapter; runtim
               {
                 name: "convyy_revert_last_batch",
                 title: "Revert Last Batch",
-                description: "Revert the last AI batch of a given chat.",
+                description: "Revert the last AI batch of a given runtime session.",
                 inputSchema: {
                   type: "object",
                   properties: {
                     boardId: { type: "string" },
-                    chatId: { type: "string" },
+                    sessionId: { type: "string" },
                   },
-                  required: ["boardId", "chatId"],
+                  required: ["boardId", "sessionId"],
                   additionalProperties: false,
                 },
               },
@@ -194,16 +194,16 @@ export function createConvyyMcpServer(input?: { adapter?: McpHostAdapter; runtim
             return createJsonRpcResult(id, buildTextToolResponse({ pages }, `Returned ${pages.length} page(s).`));
           }
 
-          if (toolName === "convyy_bind_chat") {
+          if (toolName === "convyy_bind_session") {
             const boardId = asString(args.boardId);
-            const chatId = asString(args.chatId);
+            const sessionId = asString(args.sessionId);
             const pageId = asString(args.pageId);
-            if (!boardId || !chatId || !pageId) {
-              return createJsonRpcError(id, -32602, "boardId, chatId, and pageId are required.");
+            if (!boardId || !sessionId || !pageId) {
+              return createJsonRpcError(id, -32602, "boardId, sessionId, and pageId are required.");
             }
 
-            const result = await service.bindChat(boardId, chatId, pageId);
-            return createJsonRpcResult(id, buildTextToolResponse(result, `Bound chat ${chatId} to page ${result.page.name}.`));
+            const result = await service.bindSession(boardId, sessionId, pageId);
+            return createJsonRpcResult(id, buildTextToolResponse(result, `Bound session ${sessionId} to page ${result.page.name}.`));
           }
 
           if (toolName === "convyy_get_runtime_state") {
@@ -218,30 +218,30 @@ export function createConvyyMcpServer(input?: { adapter?: McpHostAdapter; runtim
 
           if (toolName === "convyy_revert_last_batch") {
             const boardId = asString(args.boardId);
-            const chatId = asString(args.chatId);
-            if (!boardId || !chatId) {
-              return createJsonRpcError(id, -32602, "boardId and chatId are required.");
+            const sessionId = asString(args.sessionId);
+            if (!boardId || !sessionId) {
+              return createJsonRpcError(id, -32602, "boardId and sessionId are required.");
             }
 
-            const result = await service.revertLastBatch(boardId, chatId);
+            const result = await service.revertLastBatch(boardId, sessionId);
             return createJsonRpcResult(id, buildTextToolResponse(result, result.reverted ? "Reverted last AI batch." : "No AI batch was reverted."));
           }
 
           if (toolName === "convyy_run_prompt") {
             const boardId = asString(args.boardId);
-            const chatId = asString(args.chatId);
+            const sessionId = asString(args.sessionId);
             const prompt = asString(args.prompt);
             const locale = asString(args.locale) as "ru" | "en" | null;
             const pageId = asNullableString(args.pageId);
             const directToolId = asNullableString(args.toolId);
 
-            if (!boardId || !chatId || !prompt) {
-              return createJsonRpcError(id, -32602, "boardId, chatId, and prompt are required.");
+            if (!boardId || !sessionId || !prompt) {
+              return createJsonRpcError(id, -32602, "boardId, sessionId, and prompt are required.");
             }
 
             const result = await service.runPrompt({
               boardId,
-              chatId,
+              sessionId,
               prompt,
               locale: locale ?? "en",
               pageId,
@@ -262,7 +262,7 @@ export function createConvyyMcpServer(input?: { adapter?: McpHostAdapter; runtim
           }
 
           const result = await directTool.execute({
-            chatId: asString(args.chatId) ?? "tool-call",
+            sessionId: asString(args.sessionId) ?? "tool-call",
             prompt,
             locale: (asString(args.locale) as "ru" | "en" | null) ?? "en",
             boundPageId: asNullableString(args.pageId),

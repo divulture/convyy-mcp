@@ -25,7 +25,7 @@ export interface McpVisionAsset {
 }
 
 export interface McpCommitBatchInput {
-  chatId: string;
+  sessionId: string;
   pageId: string;
   toolId: string;
   payload: unknown;
@@ -42,6 +42,6 @@ export interface McpHostAdapter {
   getPageContext(pageId: string): Promise<McpPageContext | null>;
   resolvePlacement(pageId: string): Promise<McpPlacementZone>;
   commitBatch(input: McpCommitBatchInput): Promise<McpCommitBatchResult>;
-  revertLastBatch(chatId: string): Promise<boolean>;
+  revertLastBatch(sessionId: string): Promise<boolean>;
   loadVisionAssets?(pageId: string): Promise<ReadonlyArray<McpVisionAsset>>;
 }

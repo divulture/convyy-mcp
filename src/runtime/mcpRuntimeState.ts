@@ -1,8 +1,8 @@
 export type McpSessionId = string;
 export type McpGenerationStatus = "idle" | "running";
 
-export interface McpChatSessionBinding {
-  chatId: string;
+export interface McpSessionBinding {
+  sessionId: string;
   currentPageId: string | null;
   lastBatchId: string | null;
   lastBoundAt: number;
@@ -10,16 +10,17 @@ export interface McpChatSessionBinding {
 
 export interface McpRuntimeState {
   boardId: string;
-  activeGenerationChatId: string | null;
-  bindings: McpChatSessionBinding[];
+  activeGenerationSessionId: string | null;
+  bindings: McpSessionBinding[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function normalizeBinding(value: unknown): McpChatSessionBinding | null {
-  if (!isRecord(value) || typeof value.chatId !== "string" || typeof value.lastBoundAt !== "number") {
+function normalizeBinding(value: unknown): McpSessionBinding | null {
+  const sessionId = isRecord(value) && typeof value.sessionId === "string" ? value.sessionId : null;
+  if (!isRecord(value) || !sessionId || typeof value.lastBoundAt !== "number") {
     return null;
   }
 
@@ -28,7 +29,7 @@ function normalizeBinding(value: unknown): McpChatSessionBinding | null {
   const lastBatchId = value.lastBatchId === null || typeof value.lastBatchId === "string" ? value.lastBatchId : null;
 
   return {
-    chatId: value.chatId,
+    sessionId,
     currentPageId,
     lastBatchId,
     lastBoundAt: value.lastBoundAt,
@@ -38,7 +39,7 @@ function normalizeBinding(value: unknown): McpChatSessionBinding | null {
 export function createEmptyMcpRuntimeState(boardId: string): McpRuntimeState {
   return {
     boardId,
-    activeGenerationChatId: null,
+    activeGenerationSessionId: null,
     bindings: [],
   };
 }
@@ -49,14 +50,14 @@ export function normalizeMcpRuntimeState(boardId: string, value: unknown): McpRu
   }
 
   const bindings = Array.isArray(value.bindings)
-    ? value.bindings.map(normalizeBinding).filter((binding): binding is McpChatSessionBinding => binding !== null)
+    ? value.bindings.map(normalizeBinding).filter((binding): binding is McpSessionBinding => binding !== null)
     : [];
 
   return {
     boardId,
-    activeGenerationChatId:
-      value.activeGenerationChatId === null || typeof value.activeGenerationChatId === "string"
-        ? value.activeGenerationChatId
+    activeGenerationSessionId:
+      value.activeGenerationSessionId === null || typeof value.activeGenerationSessionId === "string"
+        ? value.activeGenerationSessionId
         : null,
     bindings,
   };
@@ -64,9 +65,9 @@ export function normalizeMcpRuntimeState(boardId: string, value: unknown): McpRu
 
 export function serializeMcpRuntimeState(state: McpRuntimeState): string {
   return JSON.stringify({
-    activeGenerationChatId: state.activeGenerationChatId,
+    activeGenerationSessionId: state.activeGenerationSessionId,
     bindings: state.bindings.map((binding) => ({
-      chatId: binding.chatId,
+      sessionId: binding.sessionId,
       currentPageId: binding.currentPageId,
       lastBatchId: binding.lastBatchId,
       lastBoundAt: binding.lastBoundAt,
