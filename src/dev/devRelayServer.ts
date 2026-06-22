@@ -2,7 +2,7 @@ import http from "node:http";
 
 import { createDefaultTools } from "../tools/defaultTools";
 import type { JsonRpcRequest, JsonRpcResponse } from "../server/mcpProtocol";
-import { createJsonRpcError, createJsonRpcResult } from "../server/mcpProtocol";
+import { createJsonRpcError, createJsonRpcResult, negotiateProtocolVersion } from "../server/mcpProtocol";
 import { createStdioMessageReader, writeFramedJsonRpcMessage } from "../server/stdioTransport";
 import { buildMcpToolsList } from "../server/toolCatalog";
 import type { RelayPullResponse, RelayPushRequest } from "./relayProtocol";
@@ -117,6 +117,43 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
     writeJson(response, 404, { error: "Not found" });
   });
 
+  const proc = (globalThis as typeof globalThis & {
+    process?: {
+      stderr?: { write: (chunk: string) => void };
+      stdin?: { on: (event: string, cb: () => void) => void };
+      exit: (code?: number) => never;
+    };
+  }).process;
+
+  // If the relay port is busy, another Convyy MCP instance is already bridging
+  // the board. Report it clearly and exit instead of crashing with a raw
+  // Node stack trace (which surfaces to the MCP client as "Connection closed").
+  server.on("error", (error: NodeJS.ErrnoException) => {
+    if (error.code === "EADDRINUSE") {
+      proc?.stderr?.write(
+        `Convyy MCP relay port ${host}:${port} is already in use. ` +
+          "Another Convyy MCP server (or a stale relay) is running. " +
+          "Close it before starting a new session.\n",
+      );
+    } else {
+      proc?.stderr?.write(`Convyy MCP relay failed to start: ${error.message}\n`);
+    }
+    proc?.exit(1);
+  });
+
+  // When the MCP client (Claude/Codex) closes the session it closes stdin.
+  // The HTTP listener would otherwise keep this process alive, leaking the
+  // relay port and breaking the next session with EADDRINUSE. Exit so the
+  // port is released promptly.
+  proc?.stdin?.on("end", () => {
+    server.close();
+    proc?.exit(0);
+  });
+  proc?.stdin?.on("close", () => {
+    server.close();
+    proc?.exit(0);
+  });
+
   server.listen(port, host);
 
   createStdioMessageReader(async (payload) => {
@@ -128,8 +165,9 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
     const request = payload as unknown as JsonRpcRequest;
 
     if (request.method === "initialize") {
+      const initializeParams = isRecord(request.params) ? request.params : {};
       writeFramedJsonRpcMessage(createJsonRpcResult(request.id ?? null, {
-        protocolVersion: "2024-11-05",
+        protocolVersion: negotiateProtocolVersion(initializeParams.protocolVersion),
         capabilities: {
           tools: {
             listChanged: false,
