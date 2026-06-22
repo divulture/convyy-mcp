@@ -1,11 +1,24 @@
 {
   "name": "@convyy/mcp",
   "version": "0.1.0",
-  "private": true,
   "description": "Standalone MCP core for Convyy board-oriented AI workflows.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/divulture/convyy-mcp.git"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js"
+    }
+  },
   "bin": {
     "convyy-mcp": "./dist/server.js",
     "convyy-mcp-dev": "./dist/dev/devRelayCli.js"
@@ -16,6 +29,7 @@
   ],
   "scripts": {
     "build": "node ./build.mjs && tsc -p tsconfig.types.json",
+    "prepare": "npm run build",
     "smoke": "node ./scripts/smoke.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run tests"

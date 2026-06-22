@@ -24,6 +24,11 @@ await Promise.all([
   }),
   build({
     ...shared,
+    entryPoints: ["src/browser.ts"],
+    outfile: "dist/browser.js",
+  }),
+  build({
+    ...shared,
     entryPoints: ["src/server.ts"],
     outfile: "dist/server.js",
     banner: {

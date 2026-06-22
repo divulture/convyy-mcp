@@ -9,6 +9,8 @@ export * from "./orchestration/toolRegistry";
 export * from "./runtime/mcpRuntimeState";
 export * from "./runtime/memoryRuntimeRepository";
 export * from "./server";
+export * from "./server/mcpProtocol";
+export * from "./server/toolCatalog";
 export * from "./tools/defaultTools";
 export * from "./tools/boardSummaryTool";
 export * from "./tools/diagramTool";
