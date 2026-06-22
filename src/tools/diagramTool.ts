@@ -64,7 +64,42 @@ export function createDiagramTool(): McpToolDefinition {
     inputSchema: {
       type: "object",
       properties: {
-        prompt: { type: "string" },
+        prompt: { type: "string", description: "Short description of the diagram to create." },
+        nodes: {
+          type: "array",
+          description: "Diagram nodes you generate from the request. Provide these to control the content; omit to get a generic template. Lay out a left-to-right flow; branches can use x/y.",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string", description: "Stable id you assign; connectors reference it." },
+              text: { type: "string", description: "Node label." },
+              shapeType: {
+                type: "string",
+                description: "process | decision | terminator | data | document | database | display. Use 'decision' for branch points.",
+              },
+              x: { type: "number" },
+              y: { type: "number" },
+              width: { type: "number" },
+              height: { type: "number" },
+            },
+            required: ["text"],
+            additionalProperties: false,
+          },
+        },
+        connectors: {
+          type: "array",
+          description: "Edges between nodes. `from`/`to` reference node id (or 1-based index).",
+          items: {
+            type: "object",
+            properties: {
+              from: { type: "string" },
+              to: { type: "string" },
+              label: { type: "string" },
+            },
+            required: ["from", "to"],
+            additionalProperties: false,
+          },
+        },
       },
       required: ["prompt"],
       additionalProperties: false,

@@ -52,32 +52,6 @@ describe("server", () => {
     });
   });
 
-  it("echoes the protocol version requested by the client", async () => {
-    const server = createConvyyMcpServer({ adapter: createTestAdapter() });
-
-    const response = await server.handleMessage({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "initialize",
-      params: { protocolVersion: "2025-06-18" },
-    });
-
-    expect(response?.result).toMatchObject({ protocolVersion: "2025-06-18" });
-  });
-
-  it("falls back to the default protocol version for unsupported requests", async () => {
-    const server = createConvyyMcpServer({ adapter: createTestAdapter() });
-
-    const response = await server.handleMessage({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "initialize",
-      params: { protocolVersion: "1999-01-01" },
-    });
-
-    expect(response?.result).toMatchObject({ protocolVersion: "2024-11-05" });
-  });
-
   it("lists tools through the MCP tools/list method", async () => {
     const server = createConvyyMcpServer({ adapter: createTestAdapter() });
 

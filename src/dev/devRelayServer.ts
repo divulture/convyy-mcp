@@ -2,10 +2,10 @@ import http from "node:http";
 
 import { createDefaultTools } from "../tools/defaultTools";
 import type { JsonRpcRequest, JsonRpcResponse } from "../server/mcpProtocol";
-import { createJsonRpcError, createJsonRpcResult, negotiateProtocolVersion } from "../server/mcpProtocol";
+import { createJsonRpcError, createJsonRpcResult } from "../server/mcpProtocol";
 import { createStdioMessageReader, writeFramedJsonRpcMessage } from "../server/stdioTransport";
 import { buildMcpToolsList } from "../server/toolCatalog";
-import type { RelayPullResponse, RelayPushRequest } from "./relayProtocol";
+import type { RelayPullResponse } from "./relayProtocol";
 import { createRelayQueue } from "./relayQueue";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -43,6 +43,45 @@ function writeJson(response: http.ServerResponse, statusCode: number, payload: u
   response.end(body);
 }
 
+/**
+ * Forward a tool call to an already-running relay over HTTP. Used when this
+ * process is NOT the relay owner (the port was already taken by another Convyy
+ * MCP instance) — instead of crashing on EADDRINUSE, the process attaches to
+ * the existing relay so multiple agents/projects can share one open board.
+ */
+export async function forwardAgentRequest(
+  host: string,
+  port: number,
+  request: JsonRpcRequest,
+  timeoutMs: number,
+): Promise<JsonRpcResponse | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs + 2_000);
+  try {
+    const httpResponse = await fetch(`http://${host}:${port}/agent/request`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+      signal: controller.signal,
+    });
+    const payload = (await httpResponse.json()) as {
+      ok?: boolean;
+      response?: JsonRpcResponse | null;
+      error?: string;
+    };
+    if (!payload || payload.ok !== true) {
+      throw new Error(
+        typeof payload?.error === "string"
+          ? payload.error
+          : `Convyy relay rejected the agent request (status ${httpResponse.status}).`,
+      );
+    }
+    return payload.response ?? null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export interface ConvyyMcpDevRelayOptions {
   host?: string;
   port?: number;
@@ -55,6 +94,16 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
   const requestTimeoutMs = options.requestTimeoutMs ?? 15_000;
   const relayQueue = createRelayQueue();
   const tools = createDefaultTools();
+
+  const proc = (globalThis as typeof globalThis & {
+    process?: {
+      stderr?: { write: (chunk: string) => void };
+      stdin?: { on: (event: string, cb: () => void) => void };
+      exit: (code?: number) => never;
+    };
+  }).process;
+
+  let isOwner = false;
 
   const server = http.createServer(async (request, response) => {
     if (!request.url || !request.method) {
@@ -114,104 +163,128 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
       return;
     }
 
+    // Tool calls submitted by other agents (other Claude/Codex sessions) whose
+    // own MCP process could not own the port and attached as a relay client.
+    // The request is queued just like a local stdio tool call and resolved by
+    // the same browser pull/push round trip.
+    if (request.method === "POST" && request.url === "/agent/request") {
+      try {
+        const body = parseJsonBody(await readRequestBody(request));
+        if (!isRecord(body) || body.jsonrpc !== "2.0" || typeof body.method !== "string") {
+          writeJson(response, 400, { ok: false, error: "Invalid agent request body." });
+          return;
+        }
+        const result = await relayQueue.enqueue(body as unknown as JsonRpcRequest, requestTimeoutMs);
+        writeJson(response, 200, { ok: true, response: result });
+      } catch (error) {
+        writeJson(response, 200, {
+          ok: false,
+          error: error instanceof Error ? error.message : "Convyy relay failed to route the agent request.",
+        });
+      }
+      return;
+    }
+
     writeJson(response, 404, { error: "Not found" });
   });
 
-  const proc = (globalThis as typeof globalThis & {
-    process?: {
-      stderr?: { write: (chunk: string) => void };
-      stdin?: { on: (event: string, cb: () => void) => void };
-      exit: (code?: number) => never;
-    };
-  }).process;
+  // Bridge this process's own MCP client (Claude/Codex) over stdio. `dispatch`
+  // routes tool calls either to the local queue (when we own the relay) or to
+  // the already-running relay over HTTP (when we attached as a client).
+  function attachStdioBridge(dispatch: (request: JsonRpcRequest) => Promise<JsonRpcResponse | null>) {
+    createStdioMessageReader(async (payload) => {
+      if (!isRecord(payload) || payload.jsonrpc !== "2.0" || typeof payload.method !== "string") {
+        writeFramedJsonRpcMessage(createJsonRpcError(null, -32600, "Invalid Request"));
+        return;
+      }
 
-  // If the relay port is busy, another Convyy MCP instance is already bridging
-  // the board. Report it clearly and exit instead of crashing with a raw
-  // Node stack trace (which surfaces to the MCP client as "Connection closed").
+      const request = payload as unknown as JsonRpcRequest;
+
+      if (request.method === "initialize") {
+        writeFramedJsonRpcMessage(createJsonRpcResult(request.id ?? null, {
+          protocolVersion: "2024-11-05",
+          capabilities: {
+            tools: {
+              listChanged: false,
+            },
+          },
+          serverInfo: {
+            name: "@convyy/mcp",
+            version: "0.1.0",
+          },
+        }));
+        return;
+      }
+
+      if (request.method === "ping") {
+        writeFramedJsonRpcMessage(createJsonRpcResult(request.id ?? null, {}));
+        return;
+      }
+
+      if (request.method === "notifications/initialized") {
+        return;
+      }
+
+      if (request.method === "tools/list") {
+        writeFramedJsonRpcMessage(createJsonRpcResult(request.id ?? null, {
+          tools: buildMcpToolsList(tools),
+        }));
+        return;
+      }
+
+      try {
+        const result = await dispatch(request);
+        if (result) {
+          writeFramedJsonRpcMessage(result);
+        }
+      } catch (error) {
+        writeFramedJsonRpcMessage(
+          createJsonRpcError(
+            request.id ?? null,
+            -32000,
+            error instanceof Error ? error.message : "Convyy dev bridge relay failed.",
+          ),
+        );
+      }
+    });
+  }
+
   server.on("error", (error: NodeJS.ErrnoException) => {
     if (error.code === "EADDRINUSE") {
+      // Another Convyy MCP instance already owns the relay and the open board.
+      // Instead of exiting (which surfaced as "Connection closed" and made the
+      // MCP work in only one project at a time), attach to the existing relay
+      // as a client and forward this session's tool calls over HTTP.
       proc?.stderr?.write(
-        `Convyy MCP relay port ${host}:${port} is already in use. ` +
-          "Another Convyy MCP server (or a stale relay) is running. " +
-          "Close it before starting a new session.\n",
+        `Convyy MCP relay ${host}:${port} is already running; attaching to it as a client.\n`,
       );
-    } else {
-      proc?.stderr?.write(`Convyy MCP relay failed to start: ${error.message}\n`);
+      attachStdioBridge((request) => forwardAgentRequest(host, port, request, requestTimeoutMs));
+      return;
     }
+    proc?.stderr?.write(`Convyy MCP relay failed to start: ${error.message}\n`);
     proc?.exit(1);
   });
 
+  server.on("listening", () => {
+    isOwner = true;
+    // We own the relay: serve the board (pull/push), other agents (/agent/request),
+    // and bridge our own MCP client straight into the local queue.
+    attachStdioBridge((request) => relayQueue.enqueue(request, requestTimeoutMs));
+  });
+
   // When the MCP client (Claude/Codex) closes the session it closes stdin.
-  // The HTTP listener would otherwise keep this process alive, leaking the
-  // relay port and breaking the next session with EADDRINUSE. Exit so the
-  // port is released promptly.
-  proc?.stdin?.on("end", () => {
-    server.close();
+  // Owners must release the relay port promptly so the next session can claim
+  // it; clients simply exit.
+  function shutdown() {
+    if (isOwner) {
+      server.close();
+    }
     proc?.exit(0);
-  });
-  proc?.stdin?.on("close", () => {
-    server.close();
-    proc?.exit(0);
-  });
+  }
+  proc?.stdin?.on("end", shutdown);
+  proc?.stdin?.on("close", shutdown);
 
   server.listen(port, host);
-
-  createStdioMessageReader(async (payload) => {
-    if (!isRecord(payload) || payload.jsonrpc !== "2.0" || typeof payload.method !== "string") {
-      writeFramedJsonRpcMessage(createJsonRpcError(null, -32600, "Invalid Request"));
-      return;
-    }
-
-    const request = payload as unknown as JsonRpcRequest;
-
-    if (request.method === "initialize") {
-      const initializeParams = isRecord(request.params) ? request.params : {};
-      writeFramedJsonRpcMessage(createJsonRpcResult(request.id ?? null, {
-        protocolVersion: negotiateProtocolVersion(initializeParams.protocolVersion),
-        capabilities: {
-          tools: {
-            listChanged: false,
-          },
-        },
-        serverInfo: {
-          name: "@convyy/mcp",
-          version: "0.1.0",
-        },
-      }));
-      return;
-    }
-
-    if (request.method === "ping") {
-      writeFramedJsonRpcMessage(createJsonRpcResult(request.id ?? null, {}));
-      return;
-    }
-
-    if (request.method === "notifications/initialized") {
-      return;
-    }
-
-    if (request.method === "tools/list") {
-      writeFramedJsonRpcMessage(createJsonRpcResult(request.id ?? null, {
-        tools: buildMcpToolsList(tools),
-      }));
-      return;
-    }
-
-    try {
-      const result = await relayQueue.enqueue(request, requestTimeoutMs);
-      if (result) {
-        writeFramedJsonRpcMessage(result);
-      }
-    } catch (error) {
-      writeFramedJsonRpcMessage(
-        createJsonRpcError(
-          request.id ?? null,
-          -32000,
-          error instanceof Error ? error.message : "Convyy dev bridge relay failed.",
-        ),
-      );
-    }
-  });
 
   return server;
 }

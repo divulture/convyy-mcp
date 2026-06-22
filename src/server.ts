@@ -4,7 +4,7 @@ import { runConvyyMcpDevRelay } from "./dev/devRelayServer";
 import type { McpHostAdapter, McpPageContext, McpPageSummary, McpPlacementZone } from "./contracts/hostAdapter";
 import type { McpRuntimeRepository } from "./contracts/runtimeRepository";
 import type { JsonRpcRequest, JsonRpcResponse } from "./server/mcpProtocol";
-import { createJsonRpcError, createJsonRpcResult, negotiateProtocolVersion } from "./server/mcpProtocol";
+import { createJsonRpcError, createJsonRpcResult } from "./server/mcpProtocol";
 import { createStdioMessageReader, writeFramedJsonRpcMessage } from "./server/stdioTransport";
 import { createConvyyMcpService } from "./application/convyyMcpService";
 import { createMemoryRuntimeRepository } from "./runtime/memoryRuntimeRepository";
@@ -81,7 +81,7 @@ export function createConvyyMcpServer(input?: { adapter?: McpHostAdapter; runtim
       try {
         if (request.method === "initialize") {
           return createJsonRpcResult(id, {
-            protocolVersion: negotiateProtocolVersion(params.protocolVersion),
+            protocolVersion: "2024-11-05",
             capabilities: {
               tools: {
                 listChanged: false,
