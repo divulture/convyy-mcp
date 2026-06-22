@@ -15,8 +15,12 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node ./build.mjs && tsc -p tsconfig.types.json",
+    "smoke": "node ./scripts/smoke.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run tests"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
   }
 }

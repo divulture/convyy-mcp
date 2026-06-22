@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import type { McpHostAdapter, McpPageContext, McpPageSummary, McpPlacementZone } from "./contracts/hostAdapter";
 import type { McpRuntimeRepository } from "./contracts/runtimeRepository";
 import type { JsonRpcRequest, JsonRpcResponse } from "./server/mcpProtocol";
@@ -334,7 +336,7 @@ function createDemoHostAdapter(): McpHostAdapter {
   };
 }
 
-export function runCli(args: ReadonlyArray<string>): number {
+export function runCli(args: ReadonlyArray<string>): number | null {
   const useDemoHost = args.includes("--demo");
   const server = createConvyyMcpServer({
     adapter: useDemoHost ? createDemoHostAdapter() : undefined,
@@ -365,10 +367,15 @@ export function runCli(args: ReadonlyArray<string>): number {
     }
   });
 
-  return 0;
+  return null;
 }
 
-if (import.meta.url === `file://${nodeProcess.process?.argv[1] ?? ""}`) {
+const entrypointArg = nodeProcess.process?.argv[1];
+const entrypointUrl = entrypointArg ? pathToFileURL(resolve(entrypointArg)).href : null;
+
+if (entrypointUrl !== null && import.meta.url === entrypointUrl) {
   const exitCode = runCli(nodeProcess.process?.argv.slice(2) ?? []);
-  nodeProcess.process?.exit(exitCode);
+  if (typeof exitCode === "number") {
+    nodeProcess.process?.exit(exitCode);
+  }
 }

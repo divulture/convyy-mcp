@@ -165,6 +165,7 @@ Verification:
 
 ```bash
 npm run typecheck
+npm run smoke
 npm run test
 ```
 
@@ -193,7 +194,7 @@ Example:
 }
 ```
 
-If you publish a binary entrypoint:
+If you prefer the package binary:
 
 ```json
 {
@@ -205,6 +206,13 @@ If you publish a binary entrypoint:
   }
 }
 ```
+
+The build is considered healthy only if all of the following work without manual fixes:
+
+- `npm run build`
+- `npm run smoke`
+- `node dist/server.js`
+- MCP client config pointing at `dist/server.js` or `convyy-mcp`
 
 ## Recommended Usage Flow
 
@@ -319,6 +327,7 @@ tests/
 ```bash
 npm install
 npm run build
+npm run smoke
 npm run typecheck
 npm run test
 ```
