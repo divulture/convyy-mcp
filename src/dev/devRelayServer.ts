@@ -104,6 +104,10 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
   }).process;
 
   let isOwner = false;
+  // Captured from the MCP `initialize` handshake (clientInfo.name). The board
+  // never sees `initialize` (it's answered locally below), so we capture the
+  // agent name here and inject it into every relayed tool call for the cursor.
+  let agentName: string | null = null;
 
   const server = http.createServer(async (request, response) => {
     if (!request.url || !request.method) {
@@ -201,6 +205,10 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
       const request = payload as unknown as JsonRpcRequest;
 
       if (request.method === "initialize") {
+        const clientInfo = isRecord(request.params) && isRecord(request.params.clientInfo)
+          ? request.params.clientInfo
+          : null;
+        agentName = clientInfo && typeof clientInfo.name === "string" ? clientInfo.name : null;
         writeFramedJsonRpcMessage(createJsonRpcResult(request.id ?? null, {
           protocolVersion: "2024-11-05",
           capabilities: {
@@ -233,6 +241,10 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
       }
 
       try {
+        // Inject the captured agent name so the board can label the cursor.
+        if (agentName && isRecord(request.params)) {
+          (request.params as Record<string, unknown>)._convyyAgent = agentName;
+        }
         const result = await dispatch(request);
         if (result) {
           writeFramedJsonRpcMessage(result);

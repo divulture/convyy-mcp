@@ -35,6 +35,7 @@
     "test": "vitest run tests"
   },
   "devDependencies": {
-    "esbuild": "^0.28.1"
+    "esbuild": "^0.28.1",
+    "typescript": "^6.0.2"
   }
 }
