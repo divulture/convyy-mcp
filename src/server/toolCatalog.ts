@@ -12,50 +12,44 @@ export function buildMcpToolsList(tools: ReadonlyArray<McpToolDefinition>) {
       inputSchema: tool.inputSchema,
     })),
     {
-      name: "convyy_run_prompt",
-      title: "Run Prompt",
-      description: "Resolve follow-up action, select a tool, and commit a board-ready AI batch through the active board runtime.",
+      name: "convyy_pages",
+      title: "Pages",
+      description:
+        "Manage board pages: list available pages, create a new one, or switch the active page. " +
+        "Returns pages, the active page id and the current session binding.",
       inputSchema: {
         type: "object",
         properties: {
+          action: { type: "string", enum: ["list", "create", "switch"] },
+          name: { type: "string", description: "Page name for action 'create'." },
+          pageId: { type: "string", description: "Target page id for action 'switch'." },
           boardId: { type: "string" },
           sessionId: { type: "string" },
-          prompt: { type: "string" },
-          locale: { type: "string", enum: ["ru", "en"] },
-          pageId: { type: ["string", "null"] },
-          toolId: { type: ["string", "null"] },
         },
-        required: ["prompt"],
+        required: ["action"],
         additionalProperties: false,
       },
     },
     {
-      name: "convyy_bind_session",
-      title: "Bind Session To Page",
-      description: "Bind the active runtime session to a specific page.",
+      name: "convyy_analyze",
+      title: "Analyze Canvas",
+      description:
+        "Read the canvas and return a text summary. Scope: image (images on the page), page (the whole " +
+        "page), or selection. Does not modify the board.",
       inputSchema: {
         type: "object",
         properties: {
-          boardId: { type: "string" },
-          sessionId: { type: "string" },
+          scope: { type: "string", enum: ["image", "page", "selection"] },
           pageId: { type: "string" },
+          boardId: { type: "string" },
+          sessionId: { type: "string" },
         },
-        required: ["pageId"],
+        required: ["scope"],
         additionalProperties: false,
       },
     },
     {
-      name: "convyy_list_pages",
-      title: "List Pages",
-      description: "List pages provided by the active board runtime.",
-      inputSchema: {
-        type: "object",
-        properties: {},
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "convyy_revert_last_batch",
+      name: "convyy_revert",
       title: "Revert Last Batch",
       description: "Revert the last AI batch of the active runtime session.",
       inputSchema: {
@@ -63,18 +57,6 @@ export function buildMcpToolsList(tools: ReadonlyArray<McpToolDefinition>) {
         properties: {
           boardId: { type: "string" },
           sessionId: { type: "string" },
-        },
-        additionalProperties: false,
-      },
-    },
-    {
-      name: "convyy_get_runtime_state",
-      title: "Get Runtime State",
-      description: "Inspect the current MCP runtime state for the active board runtime.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          boardId: { type: "string" },
         },
         additionalProperties: false,
       },

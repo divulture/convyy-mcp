@@ -116,31 +116,16 @@ export function createConvyyMcpServer(input?: { adapter?: McpHostAdapter; runtim
             return createJsonRpcError(id, -32602, "Tool name is required.");
           }
 
-          if (toolName === "convyy_list_pages") {
-            const pages = await service.listPages();
-            return createJsonRpcResult(id, buildTextToolResponse({ pages }, `Returned ${pages.length} page(s).`));
-          }
-
-          if (toolName === "convyy_bind_session") {
+          if (toolName === "convyy_pages") {
             const boardId = asString(args.boardId) ?? DEFAULT_RUNTIME_BOARD_ID;
             const sessionId = asString(args.sessionId) ?? DEFAULT_RUNTIME_SESSION_ID;
-            const pageId = asString(args.pageId);
-            if (!pageId) {
-              return createJsonRpcError(id, -32602, "pageId is required.");
-            }
-
-            const result = await service.bindSession(boardId, sessionId, pageId);
-            return createJsonRpcResult(id, buildTextToolResponse(result, `Bound session ${sessionId} to page ${result.page.name}.`));
+            const rawAction = asString(args.action);
+            const action = rawAction === "create" || rawAction === "switch" ? rawAction : "list";
+            const result = await service.pages(boardId, sessionId, action, asNullableString(args.name), asNullableString(args.pageId));
+            return createJsonRpcResult(id, buildTextToolResponse(result, `Returned ${result.pages.length} page(s).`));
           }
 
-          if (toolName === "convyy_get_runtime_state") {
-            const boardId = asString(args.boardId) ?? DEFAULT_RUNTIME_BOARD_ID;
-
-            const state = await service.getRuntimeState(boardId);
-            return createJsonRpcResult(id, buildTextToolResponse(state, "Returned runtime state."));
-          }
-
-          if (toolName === "convyy_revert_last_batch") {
+          if (toolName === "convyy_revert") {
             const boardId = asString(args.boardId) ?? DEFAULT_RUNTIME_BOARD_ID;
             const sessionId = asString(args.sessionId) ?? DEFAULT_RUNTIME_SESSION_ID;
 
@@ -148,30 +133,18 @@ export function createConvyyMcpServer(input?: { adapter?: McpHostAdapter; runtim
             return createJsonRpcResult(id, buildTextToolResponse(result, result.reverted ? "Reverted last AI batch." : "No AI batch was reverted."));
           }
 
-          if (toolName === "convyy_run_prompt") {
+          if (toolName === "convyy_analyze") {
             const boardId = asString(args.boardId) ?? DEFAULT_RUNTIME_BOARD_ID;
             const sessionId = asString(args.sessionId) ?? DEFAULT_RUNTIME_SESSION_ID;
-            const prompt = asString(args.prompt);
-            const locale = asString(args.locale) as "ru" | "en" | null;
-            const pageId = asNullableString(args.pageId);
-            const directToolId = asNullableString(args.toolId);
-
-            if (!prompt) {
-              return createJsonRpcError(id, -32602, "prompt is required.");
-            }
-
-            const result = await service.runPrompt({
-              boardId,
-              sessionId,
-              prompt,
-              locale: locale ?? "en",
-              pageId,
-              toolId: directToolId,
-            });
-
-            return createJsonRpcResult(id, buildTextToolResponse(result, `Committed ${result.toolId} on page ${result.page.name}.`));
+            const rawScope = asString(args.scope);
+            const scope = rawScope === "image" || rawScope === "selection" ? rawScope : "page";
+            const result = await service.analyze(boardId, sessionId, scope, asNullableString(args.pageId));
+            return createJsonRpcResult(id, buildTextToolResponse(result, result.summary));
           }
 
+          // Content tools (convyy_draw, convyy_apply_template) route through the
+          // internal runPrompt engine so the agent-provided structure is committed
+          // to the board. run_prompt is no longer a public tool; this is its engine.
           const directTool = tools.find((tool) => tool.id === toolName);
           if (!directTool) {
             return createJsonRpcError(id, -32601, `Unknown tool: ${toolName}`);
@@ -182,15 +155,17 @@ export function createConvyyMcpServer(input?: { adapter?: McpHostAdapter; runtim
             return createJsonRpcError(id, -32602, "prompt is required.");
           }
 
-          const result = await directTool.execute({
-            sessionId: asString(args.sessionId) ?? "tool-call",
+          const result = await service.runPrompt({
+            boardId: asString(args.boardId) ?? DEFAULT_RUNTIME_BOARD_ID,
+            sessionId: asString(args.sessionId) ?? DEFAULT_RUNTIME_SESSION_ID,
             prompt,
             locale: (asString(args.locale) as "ru" | "en" | null) ?? "en",
-            boundPageId: asNullableString(args.pageId),
-            boundPageName: asNullableString(args.pageName),
+            pageId: asNullableString(args.pageId),
+            toolId: toolName,
+            args,
           });
 
-          return createJsonRpcResult(id, buildTextToolResponse(result.payload, result.summary));
+          return createJsonRpcResult(id, buildTextToolResponse(result, `Committed ${result.toolId} on page ${result.page.name}.`));
         }
 
         return createJsonRpcError(id, -32601, `Method not found: ${request.method}`);

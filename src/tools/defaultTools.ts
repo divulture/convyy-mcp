@@ -1,18 +1,9 @@
 import type { McpToolDefinition } from "../contracts/tool";
-import { createBoardSummaryTool } from "./boardSummaryTool";
-import { createDiagramTool } from "./diagramTool";
-import { createJourneyMapTool } from "./journeyMapTool";
-import { createKanbanTool } from "./kanbanTool";
-import { createTemplateFillTool } from "./templateFillTool";
-import { createVisionSummaryTool } from "./visionSummaryTool";
+import { createDrawTool } from "./drawTool";
+import { createTemplateTool } from "./templateTool";
 
+// The two content tools the model selects between. Page/analyze/revert are
+// service-level tools handled directly in the server, not via execute().
 export function createDefaultTools(): ReadonlyArray<McpToolDefinition> {
-  return [
-    createDiagramTool(),
-    createKanbanTool(),
-    createTemplateFillTool(),
-    createJourneyMapTool(),
-    createVisionSummaryTool(),
-    createBoardSummaryTool(),
-  ];
+  return [createDrawTool(), createTemplateTool()];
 }

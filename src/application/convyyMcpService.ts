@@ -14,6 +14,7 @@ export interface RunPromptInput {
   locale?: "ru" | "en";
   pageId?: string | null;
   toolId?: string | null;
+  args?: Record<string, unknown> | null;
 }
 
 export interface RunPromptResult {
@@ -135,6 +136,65 @@ export function createConvyyMcpService(input: {
       return (await runtimeRepository.load(boardId)) ?? createEmptyMcpRuntimeState(boardId);
     },
 
+    // Consolidated page management for `convyy_pages` (list | create | switch).
+    // Folds list_pages + bind_session + the useful part of get_runtime_state.
+    async pages(boardId: string, sessionId: string, action: "list" | "create" | "switch", name?: string | null, pageId?: string | null) {
+      if (action === "create") {
+        const fallbackName = (name ?? "").trim() || "AI Page";
+        const page = await adapter.createPage(fallbackName);
+        const machine = await loadMachine(boardId);
+        machine.bindSession(sessionId, page.id, null);
+        await persistMachine(machine);
+      } else if (action === "switch") {
+        if (!pageId) {
+          throw new Error("pageId is required for action 'switch'.");
+        }
+        await this.bindSession(boardId, sessionId, pageId);
+      }
+
+      const pages = await adapter.listPages();
+      const state = (await runtimeRepository.load(boardId)) ?? createEmptyMcpRuntimeState(boardId);
+      const binding = state.bindings.find((item) => item.sessionId === sessionId) ?? null;
+      const activePageId = binding?.currentPageId ?? pages[0]?.id ?? null;
+      return { pages, activePageId, binding };
+    },
+
+    // Read-only canvas analysis for `convyy_analyze` (image | page | selection).
+    // Every scope returns a text summary; nothing is committed to the board.
+    async analyze(boardId: string, sessionId: string, scope: "image" | "page" | "selection", pageId?: string | null) {
+      const pages = await adapter.listPages();
+      const state = (await runtimeRepository.load(boardId)) ?? createEmptyMcpRuntimeState(boardId);
+      const binding = state.bindings.find((item) => item.sessionId === sessionId) ?? null;
+      const targetId = pageId ?? binding?.currentPageId ?? pages[0]?.id ?? null;
+      if (!targetId) {
+        return { scope, summary: "No page is available to analyze.", imageCount: 0, objectCount: 0 };
+      }
+
+      const context = await adapter.getPageContext(targetId);
+      const images = adapter.loadVisionAssets ? await adapter.loadVisionAssets(targetId) : [];
+      const objectCount = context?.objectCount ?? 0;
+      const pageName = context?.pageName ?? "page";
+      const baseSummary = context?.summary ?? "The page is empty.";
+
+      if (scope === "image") {
+        return {
+          scope,
+          summary: `${images.length} image(s) on "${pageName}". ${baseSummary}`,
+          imageCount: images.length,
+          objectCount,
+        };
+      }
+      if (scope === "selection") {
+        return {
+          scope,
+          summary: `Selection scope is unavailable in this runtime — analyzed the whole page "${pageName}". ${baseSummary}`,
+          imageCount: context?.imageCount ?? images.length,
+          objectCount,
+        };
+      }
+      return { scope, summary: baseSummary, imageCount: context?.imageCount ?? images.length, objectCount };
+    },
+
     async revertLastBatch(boardId: string, sessionId: string) {
       const machine = await loadMachine(boardId);
       const reverted = await adapter.revertLastBatch(sessionId);
@@ -204,6 +264,7 @@ export function createConvyyMcpService(input: {
           locale,
           boundPageId: page.id,
           boundPageName: page.name,
+          args: runInput.args ?? null,
         });
 
         const commit = await adapter.commitBatch({

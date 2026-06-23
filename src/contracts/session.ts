@@ -12,6 +12,12 @@ export interface McpToolExecutionContext {
   locale?: "ru" | "en";
   boundPageId: string | null;
   boundPageName: string | null;
+  /**
+   * Raw tool-call arguments from the MCP client. When the agent supplies
+   * structured content (e.g. `convyy_draw` `elements`), tools render that
+   * directly instead of falling back to a prompt-derived template.
+   */
+  args?: Record<string, unknown> | null;
 }
 
 export interface McpToolExecutionResult {

@@ -57,7 +57,7 @@ describe("convyyMcpService", () => {
     });
 
     expect(result.committed).toBe(true);
-    expect(result.toolId).toBe("convyy_create_kanban_board");
+    expect(result.toolId).toBe("convyy_apply_template");
     expect(result.batchId).toBe("batch-1");
   });
 

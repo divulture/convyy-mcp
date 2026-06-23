@@ -8,20 +8,17 @@ describe("toolRegistry", () => {
     const registry = createStaticToolRegistry(createDefaultTools());
 
     expect(registry.listTools().map((tool) => tool.id)).toEqual([
-      "convyy_create_diagram",
-      "convyy_create_kanban_board",
-      "convyy_fill_board_template",
-      "convyy_create_journey_map",
-      "convyy_analyze_page_images",
-      "convyy_create_board_summary",
+      "convyy_draw",
+      "convyy_apply_template",
     ]);
   });
 
   it("resolves the first tool that supports the prompt", () => {
     const registry = createStaticToolRegistry(createDefaultTools());
 
-    expect(registry.resolveTool("build onboarding journey map")?.id).toBe("convyy_create_journey_map");
-    expect(registry.resolveTool("create a kanban board")?.id).toBe("convyy_create_kanban_board");
-    expect(registry.resolveTool("something completely unrelated")?.id).toBe("convyy_create_board_summary");
+    expect(registry.resolveTool("build onboarding journey map")?.id).toBe("convyy_apply_template");
+    expect(registry.resolveTool("create a kanban board")?.id).toBe("convyy_apply_template");
+    expect(registry.resolveTool("draw a custom diagram")?.id).toBe("convyy_draw");
+    expect(registry.resolveTool("something completely unrelated")).toBeNull();
   });
 });

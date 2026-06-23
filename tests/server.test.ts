@@ -62,11 +62,17 @@ describe("server", () => {
     });
 
     const result = response?.result as { tools: Array<{ name: string }> };
-    expect(result.tools.some((tool) => tool.name === "convyy_run_prompt")).toBe(true);
-    expect(result.tools.some((tool) => tool.name === "convyy_create_diagram")).toBe(true);
+    const names = result.tools.map((tool) => tool.name);
+    expect(names).toEqual(
+      expect.arrayContaining(["convyy_draw", "convyy_apply_template", "convyy_pages", "convyy_analyze", "convyy_revert"]),
+    );
+    // Legacy tools and the internal run_prompt engine are not exposed.
+    expect(names).not.toContain("convyy_run_prompt");
+    expect(names).not.toContain("convyy_create_diagram");
+    expect(names).toHaveLength(5);
   });
 
-  it("executes convyy_run_prompt through tools/call", async () => {
+  it("commits a content tool through tools/call via the internal engine", async () => {
     const server = createConvyyMcpServer({ adapter: createTestAdapter() });
 
     const response = await server.handleMessage({
@@ -74,7 +80,7 @@ describe("server", () => {
       id: 1,
       method: "tools/call",
       params: {
-        name: "convyy_run_prompt",
+        name: "convyy_apply_template",
         arguments: {
           boardId: "board-1",
           sessionId: "session-1",
@@ -84,7 +90,7 @@ describe("server", () => {
     });
 
     const result = response?.result as { structuredContent: { toolId: string; page: { id: string } } };
-    expect(result.structuredContent.toolId).toBe("convyy_create_kanban_board");
+    expect(result.structuredContent.toolId).toBe("convyy_apply_template");
     expect(result.structuredContent.page.id).toBe("page-1");
   });
 });
