@@ -1,173 +1,38 @@
 # Convyy MCP
 
-`Convyy MCP` is a standalone stdio MCP server that lets an AI client operate on an already open Convyy board.
+A standalone stdio MCP server that lets an AI agent (Codex, Claude, Cursor, Cline, etc.) work
+with an **already open Convyy board**: draw on the canvas, apply templates, manage pages, read
+content, and revert its own actions.
 
-By default, the packaged server starts in relay mode:
+---
 
-- the MCP client talks to `convyy-mcp` over stdio;
-- `convyy-mcp` exposes tools immediately through `tools/list`;
-- the opened Convyy board connects to the local relay at `http://127.0.0.1:4318`;
-- tool calls are forwarded into the live board runtime and committed on the canvas.
+## 1. What this is
 
-`--local` is a fallback debugging mode only. Normal installation should use the default relay mode.
+`Convyy MCP` is a bridge between an AI agent and a live Convyy board. The agent doesn't just
+produce text — it calls tools, and the result **appears on the canvas**.
 
-Typical usage:
+Core principle: **the model owns the content and the structure, the server owns layout and
+style.** The server never invents content from a fixed template — it lays out exactly what the
+agent sends and styles it to match the board.
 
-1. the user opens Convyy in the browser;
-2. the user connects `Convyy MCP` in Codex, Claude, Cursor, Cline, or another MCP client;
-3. the agent receives MCP tools;
-4. the agent calls those tools;
-5. the result appears on the board.
+### How it works
 
-Hosted board note:
+By default the server starts in **relay mode**:
 
-- the hosted board at `https://whiteboard-sepia.vercel.app/` now shows an MCP relay diagnostics panel in the shell;
-- use that panel to distinguish `disabled`, `connecting`, `healthy`, and `failing` relay states;
-- if the AI client exposes tools but nothing appears on the board, trust the diagnostics panel before guessing about MCP transport internals.
+1. the MCP client (Codex/Claude) talks to `convyy-mcp` over stdio;
+2. `convyy-mcp` exposes its tools immediately via `tools/list`;
+3. the Convyy board open in the browser connects to the local relay at `http://127.0.0.1:4318`;
+4. tool calls are forwarded into the board runtime and committed onto the canvas.
 
-## Critical Rules
+To actually draw anything you need **both halves**: an open board in the browser **and**
+`Convyy MCP` connected in the agent. The `--local` flag is for debugging only.
 
-These rules are not optional.
+Note: these are **MCP tools, not slash commands.** The correct protocol is
+`initialize → tools/list → tools/call`. Don't type `/convyy_draw` into the client's input box.
 
-- `Convyy MCP` exposes MCP tools, not slash commands.
-- Do not try to run `/convyy_list_pages` or any other `/convyy_*` command in the MCP client input.
-- The correct protocol is `initialize` -> `tools/list` -> `tools/call`.
-- Convyy board interaction must happen through MCP tools only.
-- Do not render or mount an agent conversation UI inside the board.
-- The user talks to Codex/Claude; the board is only the result surface.
-- `sessionId` is a technical runtime/session identifier for batch ownership and rollback. It is not a signal to build an in-board conversation experience.
-- `Unknown command` from a slash-command attempt does not prove that the MCP server is broken.
-- `ToolSearch` failing to surface tools does not by itself prove that the MCP server is broken.
+---
 
-## What It Is For
-
-`Convyy MCP` exists so an agent can work with an actual Convyy board instead of only producing text.
-
-Through this MCP server, an agent can:
-
-- read page context;
-- understand which page the runtime session is bound to;
-- create new AI-owned board content;
-- commit each AI response as a separate batch;
-- replace or revert only the latest AI batch for the current runtime session;
-- choose a follow-up action such as `append`, `replace-last-batch`, `undo-last-batch`, `new-page`, or `bind-page`.
-
-## Current Capabilities
-
-The current MCP server includes:
-
-- runtime state for session-to-page bindings;
-- a one-active-generation gate per board runtime;
-- follow-up action resolution;
-- stdio MCP transport with `initialize`, `ping`, `tools/list`, and `tools/call`;
-- an orchestration entrypoint for normal prompt workflows;
-- direct tools for diagrams, kanban boards, template fill, journey maps, vision summaries, and generic board summaries.
-
-## MVP Constraints
-
-The current MVP is intentionally constrained:
-
-- the agent does not edit existing user-created objects;
-- the agent only adds new AI-owned content;
-- every AI response becomes a separate batch;
-- undo and replace only work for the latest AI batch of the current runtime session;
-- board-specific side effects go through the controlled Convyy runtime layer.
-
-## Main Tools
-
-### `convyy_run_prompt`
-
-The main orchestration tool.
-
-It:
-
-- resolves the follow-up action from the prompt;
-- picks the correct tool path;
-- works with page binding;
-- commits the final batch to the board.
-
-Use this by default unless you specifically need to call a specialized tool directly.
-
-### `convyy_bind_session`
-
-Explicitly binds the current runtime session to a page.
-
-Use it when the agent should continue working on a specific page.
-
-### `convyy_list_pages`
-
-Returns the list of pages in the board.
-
-Use it when the client needs to choose a page first.
-
-### `convyy_revert_last_batch`
-
-Reverts the latest AI batch for a runtime session.
-
-### `convyy_get_runtime_state`
-
-Returns the current MCP runtime state for the board.
-
-Useful for diagnostic or system scenarios.
-
-## Direct Tools
-
-These tools are available separately, but in most cases `convyy_run_prompt` is enough.
-
-### `convyy_create_diagram`
-
-Builds a flow or diagram payload.
-
-Good for:
-
-- auth flows;
-- onboarding flows;
-- architecture diagrams;
-- process flows.
-
-### `convyy_create_kanban_board`
-
-Builds a kanban payload.
-
-Good for:
-
-- backlog boards;
-- launch boards;
-- task boards;
-- work-stage boards.
-
-### `convyy_fill_board_template`
-
-Prepares a payload for a built-in template.
-
-Good for:
-
-- SWOT;
-- Business Model Canvas;
-- roadmap-like template scenarios.
-
-### `convyy_create_journey_map`
-
-Builds a journey map payload.
-
-Good for:
-
-- onboarding journeys;
-- customer journeys;
-- service flows;
-- service-blueprint-style scenarios.
-
-### `convyy_analyze_page_images`
-
-Prepares a vision-oriented payload from images found on the current page.
-
-### `convyy_create_board_summary`
-
-Generic fallback tool for summary, structure, and draft-style scenarios.
-
-## Installation
-
-Install `Convyy MCP` from its standalone Git repository:
+## 2. Installation
 
 ```bash
 git clone https://github.com/divulture/convyy-mcp.git
@@ -176,270 +41,181 @@ npm install
 npm run build
 ```
 
-Verification:
+Verify the build:
 
 ```bash
-npm run typecheck
-npm run smoke
-npm run test
+npm run typecheck   # types
+npm run test        # unit tests
+npm run smoke       # stdio boot/handshake check
 ```
 
-`npm run smoke` is a stdio boot/handshake check. It does not prove that the live browser relay is already attached to an open board.
+`npm run smoke` confirms the server starts and answers the handshake. It does **not** prove that
+the browser board is already attached to the relay.
 
-## Agent Install Contract
+After building, two binaries are available:
 
-This section is for agents. Follow it exactly.
+- `convyy-mcp` → `dist/server.js` (the MCP server);
+- `convyy-mcp-dev` → `dist/dev/devRelayCli.js` (dev relay CLI).
 
-### Allowed install flow
+---
 
-1. run `npm install`
-2. run `npm run build`
-3. run `npm run smoke`
-4. register the server in the MCP client config
-5. reconnect or restart the MCP client
-6. verify `tools/list`
+## 3. Connecting it to your agent
 
-### Stop conditions
+Connect it like any other stdio MCP server. Point it at `dist/server.js` or the `convyy-mcp`
+binary.
 
-Stop and report the exact failing step if any of these fail:
+### Claude (Desktop / Claude Code)
 
-- `npm install`
-- `npm run build`
-- `npm run smoke`
-- MCP client reconnect
-- `tools/list`
+Claude Code (CLI):
 
-Do not continue to later steps after an earlier step fails.
+```bash
+claude mcp add convyy -- node /absolute/path/convyy-mcp/dist/server.js
+```
 
-### Required evidence before claiming success
-
-An agent may only claim that `Convyy MCP` is installed correctly if all of these are true:
-
-- `npm run build` succeeded
-- `npm run smoke` succeeded
-- the MCP client was configured to launch `node ./dist/server.js` or `convyy-mcp`
-- an open Convyy board is running in the browser and can reach `http://127.0.0.1:4318`
-- after reconnect, `tools/list` exposes `convyy_*` tools
-- the hosted board diagnostics panel reports `healthy`, or an equivalent successful relay state is directly confirmed
-
-### Forbidden behavior for agents
-
-Do not do any of the following:
-
-- do not use slash commands such as `/convyy_list_pages`
-- do not use `ToolSearch` as the primary proof that installation worked
-- do not wait and retry blindly for long periods
-- do not rewrite transport framing based on a failed ad hoc handshake test
-- do not modify server code before `npm run smoke` fails with a reproducible error
-- do not diagnose MCP transport by guessing protocol details from memory
-- do not treat missing Claude/Codex CLI binaries as proof that the MCP server is broken
-- do not mix server build/debug work with client registration work in the same conclusion
-
-### Correct diagnostic order
-
-If installation does not work, diagnose in this order only:
-
-1. `npm run build`
-2. `npm run smoke`
-3. check MCP client config
-4. reconnect MCP client
-5. verify `tools/list`
-
-If `npm run smoke` passes, do not claim that `stdioTransport` is broken without a new direct reproduction.
-
-### Correct conclusion templates
-
-Use only one of these conclusion shapes:
-
-- `Build failed at step X with error Y. MCP is not ready to register yet.`
-- `Smoke failed at step X with error Y. MCP server starts incorrectly.`
-- `Build and smoke passed, but MCP client still does not expose tools. The remaining problem is client registration or reconnect state.`
-- `Build, smoke, reconnect, and tools/list passed. MCP is installed correctly.`
-
-## Connect It To An MCP Client
-
-After building, `Convyy MCP` can be connected like any other stdio MCP server.
-
-Important:
-
-- `Convyy MCP` is distributed as a separate repository and installed separately by the developer;
-- Convyy itself is opened separately at its hosted domain;
-- the MCP server does not embed the board inside the AI client;
-- the MCP server does not create a board-local conversation UI;
-- it gives the agent tools to work with an already opened Convyy runtime.
-
-Example:
+Or manually in `claude_desktop_config.json` (Claude Desktop):
 
 ```json
 {
   "mcpServers": {
     "convyy": {
       "command": "node",
-      "args": ["./dist/server.js"]
+      "args": ["/absolute/path/convyy-mcp/dist/server.js"]
     }
   }
 }
 ```
 
-If you prefer the package binary:
+### Codex
+
+In `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.convyy]
+command = "node"
+args = ["/absolute/path/convyy-mcp/dist/server.js"]
+```
+
+### If the binary is on your PATH
+
+If the package is installed globally or linked (`npm link`), it's simpler:
 
 ```json
 {
   "mcpServers": {
-    "convyy": {
-      "command": "convyy-mcp",
-      "args": []
-    }
+    "convyy": { "command": "convyy-mcp", "args": [] }
   }
 }
 ```
 
-The build is considered healthy only if all of the following work without manual fixes:
+### After connecting
 
-- `npm run build`
-- `npm run smoke`
-- `node dist/server.js`
-- MCP client config pointing at `dist/server.js` or `convyy-mcp`
+1. restart/reconnect the MCP client;
+2. confirm `tools/list` exposes the `convyy_*` tools;
+3. open a Convyy board in the browser and check the relay reaches `healthy`;
+4. give the agent a task — the result appears on the canvas.
 
-## Recommended Usage Flow
+---
 
-1. establish a normal MCP session with `initialize`
-2. call `tools/list`
-3. confirm that `convyy_*` tools are actually present
-4. call `convyy_list_pages`
-5. call `convyy_bind_session` if a specific page should be targeted
-6. call `convyy_run_prompt`
-7. call `convyy_revert_last_batch` if the latest AI result should be rolled back
+## 4. Available tools
 
-Example requests:
+Five tools with clear boundaries: four write tools (`draw`, `apply_template`, `pages`,
+`revert`) and one read tool (`analyze`).
 
-- `Create a kanban board for launch prep`
-- `Build an onboarding journey map`
-- `Create an auth flow diagram`
-- `Fill a SWOT template for our product`
-- `Analyze this screenshot and build a board summary`
+### `convyy_draw` — draw anything
 
-## What Not To Do
+The universal tool. The agent sends an array of `elements` built from native board primitives;
+the server lays them out as canvas objects.
 
-Do not do any of the following:
+Supported elements:
+- `shape` — a shape (process, decision, terminator, rectangle, ellipse… the flowchart set);
+- `sticky` — a sticky note (with a colour);
+- `frame` — a container frame;
+- `text` — a text block;
+- `connector` — a link between elements (`from`/`to` by id).
 
-- do not call `/convyy_list_pages`
-- do not treat MCP tool names as slash commands
-- do not conclude "server is broken" only because a slash command failed
-- do not conclude "server is broken" only because search did not surface tools yet
-- do not build or show a board-local conversation panel
-- do not route user interaction through a board-side input box
-- do not use the board as the conversation surface
+An optional `layout` hint (`free` | `flow-lr` | `grid`) lets the agent skip coordinates and have
+the server place elements. This is the escape hatch for anything that doesn't fit a template
+(custom diagrams, sticky sets, flows, summaries).
 
-## Minimal Verification
+### `convyy_apply_template` — adaptive named template
 
-If you need to verify that the MCP server is healthy, use this order:
+Recurring business artefacts with a tuned layout and style. The agent provides a `templateId`
+and a `structure` (lanes and stages of **any size**); the server builds the grid and **grows it**
+to fit the content, inheriting the preset style. Content is never truncated.
 
-1. start the stdio server process
-2. send `initialize`
-3. send `tools/list`
-4. verify that `convyy_run_prompt`, `convyy_list_pages`, `convyy_bind_session`, `convyy_revert_last_batch`, and `convyy_get_runtime_state` are present
-5. only then start normal tool calls
+Available `templateId`s:
+- `cjm` — customer journey map (default lanes: actions/pains/opportunities; add your own);
+- `swot` — SWOT analysis;
+- `raci` — RACI matrix (roles × tasks);
+- `retro` — retrospective board;
+- `bmc` — Business Model Canvas;
+- `kanban` — kanban board (rendered as a native kanban frame).
 
-If `tools/list` returns Convyy tools, the server is up. At that point, a failed slash command is irrelevant.
+Calling with `{ "list": true }` returns the available templates and their `structure` shape
+without committing anything.
 
-## Troubleshooting
+### `convyy_pages` — page management
 
-### Symptom: `Unknown command: /convyy_list_pages`
+`action`:
+- `list` — pages + active page + session binding;
+- `create` — create a page (`name`) and make it active;
+- `switch` — switch to a page (`pageId`).
 
-This is a caller error, not evidence of MCP failure.
+### `convyy_analyze` — read the canvas (read-only)
 
-Reason:
+`scope`:
+- `image` — analyze the images on the page;
+- `page` — text summary of the whole page;
+- `selection` — summary of the selection (falls back to the whole page if unavailable).
 
-- `/convyy_list_pages` is not a supported slash command;
-- `convyy_list_pages` is an MCP tool name and must be called through `tools/call`.
+Returns a text summary and changes nothing on the board.
 
-### Symptom: search does not show any `convyy` tools
+### `convyy_revert` — undo
 
-This is inconclusive on its own.
+Reverts the last AI batch of the current session. A safety tool.
 
-Possible causes:
+---
 
-- the MCP client has not finished initialization;
-- the client is searching the wrong registry/path;
-- the session has not completed `initialize` or `tools/list`;
-- the tool-discovery UI is delayed or filtered.
+## Example prompts
 
-Correct action:
+- "Draw an auth flow diagram with a branch" → `convyy_draw`
+- "Build an onboarding CJM with 6 stages and an emotions lane" → `convyy_apply_template` (`cjm`)
+- "Launch kanban: Backlog / Doing / Review / Done" → `convyy_apply_template` (`kanban`)
+- "Drop 5 sticky notes about risks" → `convyy_draw`
+- "What's on this page right now?" → `convyy_analyze` (`page`)
+- "Undo that" → `convyy_revert`
 
-1. verify the server process starts;
-2. verify `initialize` succeeds;
-3. verify `tools/list` returns `convyy_*` tools;
-4. only then diagnose client-specific discovery issues.
+---
 
-### Symptom: `tools/list` works, but nothing appears on `whiteboard-sepia.vercel.app`
+## Constraints (MVP)
 
-This usually means MCP registration is fine and the remaining problem is the board-to-relay path.
+- the agent does **not** edit existing user objects — it only adds new AI-owned content;
+- every response is committed as a separate batch;
+- undo only works for the last AI batch of the current session;
+- native tables and images in `convyy_draw` are not supported yet (backlog) — grid-style tables
+  are assembled from `shape` elements.
 
-Check in this order:
+---
 
-1. confirm the board shell diagnostics panel is not `disabled`;
-2. confirm it reaches `healthy` rather than staying `connecting` or `failing`;
-3. confirm the local relay is actually listening on `127.0.0.1:4318`;
-4. confirm the server was not launched with `--local`;
-5. only after that inspect prompt or tool behavior.
+## Architecture
 
-### Symptom: the agent creates a conversation panel inside the board
-
-This is an integration bug.
-
-Correct model:
-
-- user interaction belongs in Codex/Claude;
-- Convyy is a visual output surface;
-- MCP writes results to the board, but the board is not the conversation UI.
-
-## What Is Required For Real Usage
-
-To actually work with a board, both parts are required:
-
-1. Convyy must be open in the browser at its hosted domain;
-2. `Convyy MCP` must be connected in the AI client.
-
-Typical flow:
-
-1. the user opens Convyy;
-2. the user opens an AI conversation in the MCP client;
-3. the agent calls MCP tools;
-4. the result appears in the active Convyy board runtime.
-
-For the hosted board flow, also confirm the diagnostics panel state:
-
-- `disabled`: relay polling is turned off for this board session, so MCP output will never reach the board;
-- `connecting`: the board is polling but has not yet established a healthy relay cycle;
-- `healthy`: the board is attached to the local relay and ready to receive tool output;
-- `failing`: the board cannot currently complete relay requests; restart the local relay or reconnect the MCP client before blaming the tool layer.
-
-## Hosted Board Quick Check
-
-Use this exact order when the target is `https://whiteboard-sepia.vercel.app/`:
-
-1. open the hosted board in the browser;
-2. verify the shell diagnostics panel is present;
-3. start `Convyy MCP` normally, without `--local`;
-4. reconnect Claude/Codex so `tools/list` exposes `convyy_*` tools;
-5. confirm the diagnostics panel becomes `healthy`;
-6. only then call `convyy_run_prompt` or a direct `convyy_*` tool.
-
-If step 4 works but step 5 does not, the remaining problem is board-to-relay connectivity, not MCP tool registration.
-
-## Repository Structure
+The public surface (what the model sees in `tools/list`) is owned by the server catalog.
+Rendering to the board goes through the internal commit engine (`runPrompt` → `commitBatch`) —
+which is no longer a public tool. The agent names a content tool directly (`convyy_draw` /
+`convyy_apply_template`) and the server resolves the page and commits the batch.
 
 ```text
 src/
-  application/
-  contracts/
-  orchestration/
-  runtime/
-  server/
-  tools/
+  application/    # orchestration: runPrompt (internal commit engine), pages, analyze
+  contracts/      # tool, session and host-adapter types
+  orchestration/  # tool registry, follow-up actions, session machine
+  runtime/        # runtime state (session ↔ page bindings)
+  server/         # stdio transport, JSON-RPC, tool catalog
+  tools/          # drawTool, templateTool, templatePresets
 tests/
 ```
+
+---
 
 ## Commands
 
@@ -450,3 +226,16 @@ npm run smoke
 npm run typecheck
 npm run test
 ```
+
+## Troubleshooting (relay)
+
+If `tools/list` exposes the tools but nothing shows up on the board, the problem is the
+board↔relay link, not MCP registration:
+
+1. the board's relay diagnostics panel is open and not `disabled`;
+2. it reached `healthy` (instead of getting stuck in `connecting`/`failing`);
+3. the local relay is listening on `127.0.0.1:4318`;
+4. the server was started **without** `--local`.
+
+An error like `Unknown command: /convyy_draw` only means a tool was called as a slash command —
+it's not a server failure. Tools are invoked through `tools/call`.
