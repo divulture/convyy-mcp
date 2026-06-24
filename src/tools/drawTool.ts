@@ -58,35 +58,17 @@ function computeZone(elements: ReadonlyArray<DrawElementOut>) {
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
-function deriveBullets(prompt: string): string[] {
-  const parts = prompt.split(/\n|[.!?;]/).map((part) => part.trim()).filter(Boolean);
-  if (parts.length >= 3) return parts.slice(0, 3);
-  if (parts.length > 0) return [parts[0] ?? "Main idea", parts[1] ?? "Key flow", parts[2] ?? "Next step"];
-  return ["Main idea", "Key flow", "Next step"];
-}
-
-function buildFallback(prompt: string) {
-  const title = prompt.trim().slice(0, 52) || "Board Summary";
-  const elements: DrawElementOut[] = [
-    { kind: "frame", id: "draw-frame-1", title, x: START, y: START, width: 720, height: 420 },
-    { kind: "text", id: "draw-text-1", text: title, x: START + 28, y: START + 24, width: 520, height: 64, fontSize: 42, bold: true },
-    ...deriveBullets(prompt).slice(0, 3).map((bullet, index): DrawElementOut => ({
-      kind: "sticky", id: `draw-sticky-${index + 1}`, text: bullet, color: "amber",
-      x: START + 28 + index * 220, y: START + 120, width: 184, height: 144,
-    })),
-  ];
-  return { elements, zone: computeZone(elements) };
-}
-
 /**
  * Normalize the agent-provided `elements` into a render-ready payload. The agent
  * owns content/structure; this owns ids, default sizes, auto-layout, validation.
+ * Empty `elements` is a "thinking" signal — nothing is drawn.
  */
 export function buildDrawPayload(args: Record<string, unknown> | null | undefined, prompt: string) {
   const layout = typeof args?.layout === "string" && LAYOUTS.has(args.layout) ? args.layout : "free";
   const rawElements = Array.isArray(args?.elements) ? (args!.elements as Array<Record<string, unknown>>) : [];
   if (rawElements.length === 0) {
-    return buildFallback(prompt);
+    // Thinking signal: wakes the on-board cursor, draws nothing.
+    return { elements: [] as DrawElementOut[], zone: { x: START, y: START, width: 0, height: 0 } };
   }
 
   let slot = 0;
@@ -177,11 +159,13 @@ export function createDrawTool(): McpToolDefinition {
     description:
       "Render any board content you compose from native primitives. Provide `elements` (shape, sticky, " +
       "frame, text, connector); the server owns ids, layout and styling. Use this for anything that does " +
-      "not fit a named template.",
+      "not fit a named template. THINKING SIGNAL: when you START handling the user's request, call this " +
+      "once with empty `elements: []` so the board shows your cursor 'thinking'; then call it again with the " +
+      "real `elements` once you have composed the answer.",
     inputSchema: {
       type: "object",
       properties: {
-        prompt: { type: "string", description: "Short description of what to draw (used for fallback)." },
+        prompt: { type: "string", description: "Short description of what to draw." },
         layout: { type: "string", description: "Layout hint: free | flow-lr | grid. Default free." },
         elements: {
           type: "array",
