@@ -13,9 +13,12 @@ const STICKY_COLORS = new Set(["amber", "sky", "emerald", "rose", "violet", "ora
 const SHAPE_FILLS = new Set(["transparent", "white", "ink", "amber", "emerald", "sky", "violet", "rose"]);
 const LAYOUTS = new Set(["free", "flow-lr", "grid"]);
 
+// Stickies are square on the board (224px native default) and snap square on
+// resize, so AI stickies must be created square or they "jump".
+const STICKY_SIDE = 224;
 const DEFAULT_SIZE: Record<string, { width: number; height: number }> = {
   shape: { width: 220, height: 120 },
-  sticky: { width: 200, height: 160 },
+  sticky: { width: STICKY_SIDE, height: STICKY_SIDE },
   frame: { width: 600, height: 400 },
   text: { width: 320, height: 48 },
 };
@@ -120,7 +123,9 @@ export function buildDrawPayload(args: Record<string, unknown> | null | undefine
       elements.push({ kind, id, text, shapeType, x, y, width, height, ...(fill ? { fill } : {}) });
     } else if (kind === "sticky") {
       const color = typeof raw.color === "string" && STICKY_COLORS.has(raw.color) ? raw.color : "amber";
-      elements.push({ kind, id, text, color, x, y, width, height });
+      // Keep stickies square (the board snaps them square on resize anyway).
+      const side = asNumber(raw.width) ?? asNumber(raw.height) ?? STICKY_SIDE;
+      elements.push({ kind, id, text, color, x, y, width: side, height: side });
     } else {
       const fontSize = asNumber(raw.fontSize) ?? undefined;
       const bold = typeof raw.bold === "boolean" ? raw.bold : undefined;
