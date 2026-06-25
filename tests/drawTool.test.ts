@@ -37,6 +37,39 @@ describe("buildDrawPayload", () => {
     }
   });
 
+  it("maps plain English color names onto sticky tokens", () => {
+    const payload = buildDrawPayload(
+      {
+        layout: "free",
+        elements: [
+          { kind: "sticky", id: "a", text: "A", color: "yellow", x: 0, y: 0 },
+          { kind: "sticky", id: "b", text: "B", color: "Blue", x: 400, y: 0 },
+          { kind: "sticky", id: "c", text: "C", color: "green", x: 800, y: 0 },
+          { kind: "sticky", id: "d", text: "D", color: "chartreuse", x: 1200, y: 0 },
+        ],
+      },
+      "draw stickies",
+    );
+
+    const colors = payload.elements
+      .filter((element) => element.kind === "sticky")
+      .map((element) => (element as { color: string }).color);
+    expect(colors).toEqual(["amber", "sky", "emerald", "amber"]);
+  });
+
+  it("maps plain English fill names onto shape fill tokens", () => {
+    const payload = buildDrawPayload(
+      {
+        layout: "free",
+        elements: [{ kind: "shape", id: "s", text: "S", shapeType: "process", fill: "green" }],
+      },
+      "draw a shape",
+    );
+
+    const shape = payload.elements.find((element) => element.kind === "shape") as { fill?: string };
+    expect(shape.fill).toBe("emerald");
+  });
+
   it("respects the agent-provided sticky size as the square side", () => {
     const payload = buildDrawPayload(
       {

@@ -11,6 +11,32 @@ const SHAPE_TYPES = new Set([
 ]);
 const STICKY_COLORS = new Set(["amber", "sky", "emerald", "rose", "violet", "orange"]);
 const SHAPE_FILLS = new Set(["transparent", "white", "ink", "amber", "emerald", "sky", "violet", "rose"]);
+
+// Agents tend to reach for plain English color names; map the common ones onto
+// our design tokens so a reasonable guess still lands on the intended color
+// instead of silently collapsing to the default.
+const COLOR_ALIASES: Record<string, string> = {
+  yellow: "amber",
+  gold: "amber",
+  blue: "sky",
+  cyan: "sky",
+  lightblue: "sky",
+  green: "emerald",
+  lime: "emerald",
+  teal: "emerald",
+  red: "rose",
+  pink: "rose",
+  purple: "violet",
+  magenta: "violet",
+};
+
+function resolveColorToken(raw: unknown, allowed: Set<string>, fallback: string): string {
+  if (typeof raw !== "string") return fallback;
+  const normalized = raw.trim().toLowerCase();
+  if (allowed.has(normalized)) return normalized;
+  const aliased = COLOR_ALIASES[normalized];
+  return aliased && allowed.has(aliased) ? aliased : fallback;
+}
 const LAYOUTS = new Set(["free", "flow-lr", "grid"]);
 
 // Stickies are square on the board (224px native default) and snap square on
@@ -154,10 +180,11 @@ export function buildDrawPayload(args: Record<string, unknown> | null | undefine
       elements.push({ kind, id, title, x, y, width, height });
     } else if (kind === "shape") {
       const shapeType = typeof raw.shapeType === "string" && SHAPE_TYPES.has(raw.shapeType) ? raw.shapeType : "process";
-      const fill = typeof raw.fill === "string" && SHAPE_FILLS.has(raw.fill) ? raw.fill : undefined;
+      const fill =
+        typeof raw.fill === "string" ? resolveColorToken(raw.fill, SHAPE_FILLS, "") || undefined : undefined;
       elements.push({ kind, id, text, shapeType, x, y, width, height, ...(fill ? { fill } : {}) });
     } else if (kind === "sticky") {
-      const color = typeof raw.color === "string" && STICKY_COLORS.has(raw.color) ? raw.color : "amber";
+      const color = resolveColorToken(raw.color, STICKY_COLORS, "amber");
       // Keep stickies square (the board snaps them square on resize anyway).
       const side = asNumber(raw.width) ?? asNumber(raw.height) ?? STICKY_SIDE;
       elements.push({ kind, id, text, color, x, y, width: side, height: side });
@@ -222,8 +249,11 @@ export function createDrawTool(): McpToolDefinition {
           type: "array",
           description:
             "Elements you generate from the request. Each is one of: " +
-            "{ kind:'shape', id, text, shapeType, x?,y?,width?,height?, fill? } | " +
-            "{ kind:'sticky', id, text, color?, x?,y?,width?,height? } | " +
+            "{ kind:'shape', id, text, shapeType, x?,y?,width?,height?, fill? } — fill is one of: " +
+            "transparent | white | ink | amber | emerald | sky | violet | rose. | " +
+            "{ kind:'sticky', id, text, color?, x?,y?,width?,height? } — color is one of: " +
+            "amber | sky | emerald | rose | violet | orange (default amber). Use these tokens, NOT " +
+            "plain color names like yellow/blue/green. | " +
             "{ kind:'frame', id, title, x?,y?,width?,height? } | " +
             "{ kind:'text', id, text, x?,y?,width?,height?, fontSize?, bold? } | " +
             "{ kind:'connector', from, to, label? }. Omit coordinates to let the server lay them out.",
