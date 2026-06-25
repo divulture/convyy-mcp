@@ -101,6 +101,18 @@ export function createConvyyMcpService(input: {
     }
 
     const binding = machine.getState().bindings.find((item) => item.sessionId === sessionId) ?? null;
+
+    // Prefer the page the user is currently viewing over a stale session binding,
+    // so drawing always lands on the open page unless the user asked otherwise.
+    const activePageId = adapter.getActivePageId ? await adapter.getActivePageId() : null;
+    if (activePageId) {
+      const activePage = pages.find((page) => page.id === activePageId);
+      if (activePage) {
+        machine.bindSession(sessionId, activePage.id, binding?.lastBatchId ?? null);
+        return activePage;
+      }
+    }
+
     if (binding?.currentPageId) {
       const boundPage = pages.find((page) => page.id === binding.currentPageId);
       if (boundPage) {

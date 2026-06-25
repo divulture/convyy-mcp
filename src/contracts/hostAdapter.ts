@@ -38,6 +38,10 @@ export interface McpCommitBatchResult {
 
 export interface McpHostAdapter {
   listPages(): Promise<ReadonlyArray<McpPageSummary>>;
+  // The page the user is currently viewing. Draw targets it by default so the
+  // agent never silently draws on an off-screen page. Optional: adapters that
+  // cannot report a viewport (e.g. headless) fall back to the session binding.
+  getActivePageId?(): Promise<string | null>;
   createPage(name: string): Promise<McpPageSummary>;
   getPageContext(pageId: string): Promise<McpPageContext | null>;
   resolvePlacement(pageId: string): Promise<McpPlacementZone>;

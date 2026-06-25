@@ -47,6 +47,41 @@ function inferKind(raw: Record<string, unknown>): string {
   return "text";
 }
 
+// Safety net: keep stickies/shapes from overlapping. The agent owns the layout,
+// but it positions elements before knowing the server snaps stickies square — a
+// 184x144 sticky becomes 184x184 and grows into the row the agent placed below.
+// When two movable boxes overlap, push the later one out along its
+// least-penetration axis. Frames (containers) and text labels are left in place.
+const SEPARATION_GAP = 24;
+function separateBoxes(boxes: Array<{ kind: string; x: number; y: number; width: number; height: number }>): void {
+  const movable = boxes.filter((box) => box.kind === "sticky" || box.kind === "shape");
+  for (let pass = 0; pass < 8; pass += 1) {
+    let moved = false;
+    for (let i = 0; i < movable.length; i += 1) {
+      for (let j = i + 1; j < movable.length; j += 1) {
+        const a = movable[i]!;
+        const b = movable[j]!;
+        const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+        const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+        if (overlapX <= 0 || overlapY <= 0) {
+          continue;
+        }
+        if (overlapX < overlapY) {
+          const dir = b.x + b.width / 2 >= a.x + a.width / 2 ? 1 : -1;
+          b.x += dir * (overlapX + SEPARATION_GAP);
+        } else {
+          const dir = b.y + b.height / 2 >= a.y + a.height / 2 ? 1 : -1;
+          b.y += dir * (overlapY + SEPARATION_GAP);
+        }
+        moved = true;
+      }
+    }
+    if (!moved) {
+      break;
+    }
+  }
+}
+
 function computeZone(elements: ReadonlyArray<DrawElementOut>) {
   const boxes = elements.filter(
     (element): element is Exclude<DrawElementOut, { kind: "connector" }> => element.kind !== "connector",
@@ -133,6 +168,10 @@ export function buildDrawPayload(args: Record<string, unknown> | null | undefine
     }
   });
 
+  // Separate overlapping stickies/shapes before connectors are wired so the
+  // connectors attach to the final (non-overlapping) positions.
+  separateBoxes(elements as Array<{ kind: string; x: number; y: number; width: number; height: number }>);
+
   const resolveEndpoint = (value: unknown): string | null => {
     if (value == null) return null;
     const key = String(value);
@@ -163,10 +202,17 @@ export function createDrawTool(): McpToolDefinition {
     title: "Draw On Board",
     description:
       "Render any board content you compose from native primitives. Provide `elements` (shape, sticky, " +
-      "frame, text, connector); the server owns ids, layout and styling. Use this for anything that does " +
-      "not fit a named template. THINKING SIGNAL: when you START handling the user's request, call this " +
-      "once with empty `elements: []` so the board shows your cursor 'thinking'; then call it again with the " +
-      "real `elements` once you have composed the answer.",
+      "frame, text, connector); the server owns ids and styling, but YOU own the layout — give explicit " +
+      "x/y/width/height so nothing overlaps. LAYOUT RULES: (1) Stickies are ALWAYS square; the side equals " +
+      "the `width` you send (height is ignored), so reserve a square footprint and leave >=40px gaps between " +
+      "boxes. (2) Lay diagrams out on a clean grid (left-to-right or top-to-bottom) and connect adjacent " +
+      "boxes; do NOT place any shape on the straight line between two boxes you connect, or the arrow will " +
+      "cross it. (3) For a branch/decision, offset the branch target to the side or below with clear space so " +
+      "its connector has an empty corridor — the server routes arrows from the nearest edges with elbow " +
+      "bends, which only stays clean when you leave room. Use this for anything that does not fit a named " +
+      "template. THINKING SIGNAL: when you START handling the user's request, call this once with empty " +
+      "`elements: []` so the board shows your cursor 'thinking'; then call it again with the real `elements` " +
+      "once you have composed the answer.",
     inputSchema: {
       type: "object",
       properties: {
