@@ -6,6 +6,7 @@ import {
   forwardAgentRequest,
   runConvyyMcpDevRelay,
 } from "../src/dev/devRelayServer";
+import { CONVYY_RELAY_PROTOCOL_VERSION } from "../src/dev/relayProtocol";
 import type { JsonRpcRequest, JsonRpcResponse } from "../src/server/mcpProtocol";
 
 const HOST = "127.0.0.1";
@@ -22,9 +23,9 @@ function findFreePort(): Promise<number> {
   });
 }
 
-function getJson(port: number, path: string): Promise<unknown> {
+function getJson(port: number, path: string, headers?: Record<string, string>): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: HOST, port, path, method: "GET" }, (res) => {
+    const req = http.request({ host: HOST, port, path, method: "GET", headers }, (res) => {
       let body = "";
       res.setEncoding("utf8");
       res.on("data", (chunk) => (body += chunk));
@@ -35,7 +36,7 @@ function getJson(port: number, path: string): Promise<unknown> {
   });
 }
 
-function postJson(port: number, path: string, payload: unknown): Promise<void> {
+function postJson(port: number, path: string, payload: unknown, headers?: Record<string, string>): Promise<void> {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify(payload);
     const req = http.request(
@@ -44,7 +45,11 @@ function postJson(port: number, path: string, payload: unknown): Promise<void> {
         port,
         path,
         method: "POST",
-        headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body),
+          ...headers,
+        },
       },
       (res) => {
         res.resume();
@@ -56,21 +61,59 @@ function postJson(port: number, path: string, payload: unknown): Promise<void> {
   });
 }
 
+async function createBrowserRelayHeaders(port: number): Promise<Record<string, string>> {
+  const body = JSON.stringify({
+    protocolVersion: CONVYY_RELAY_PROTOCOL_VERSION,
+    clientId: "test-browser",
+    boardId: "board-1",
+    nonce: "test-nonce",
+  });
+
+  const payload = await new Promise<{ sessionToken: string }>((resolve, reject) => {
+    const req = http.request(
+      {
+        host: HOST,
+        port,
+        path: "/browser/handshake",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        let responseBody = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => (responseBody += chunk));
+        res.on("end", () => resolve(JSON.parse(responseBody) as { sessionToken: string }));
+      },
+    );
+    req.on("error", reject);
+    req.end(body);
+  });
+
+  return {
+    "X-Convyy-Relay-Client-Id": "test-browser",
+    "X-Convyy-Relay-Token": payload.sessionToken,
+  };
+}
+
 // Simulates the board: long-polls /browser/pull and pushes a crafted response
 // for whatever request id it receives, until stopped.
 function startFakeBoard(port: number, makeResponse: (request: JsonRpcRequest) => JsonRpcResponse) {
   let running = true;
   async function loop() {
+    const relayHeaders = await createBrowserRelayHeaders(port);
     while (running) {
       try {
-        const pulled = (await getJson(port, "/browser/pull")) as {
+        const pulled = (await getJson(port, "/browser/pull", relayHeaders)) as {
           request: { relayRequestId: string; message: JsonRpcRequest } | null;
         };
         if (pulled?.request) {
           await postJson(port, "/browser/push", {
             relayRequestId: pulled.request.relayRequestId,
             response: makeResponse(pulled.request.message),
-          });
+          }, relayHeaders);
         } else {
           await new Promise((r) => setTimeout(r, 10));
         }

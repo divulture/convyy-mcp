@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "convyy": {
+      "command": "node",
+      "args": ["/Users/dmitriyivanov/Desktop/Мои проекты/orc/MCP/dist/server.js"]
+    }
+  }
+}

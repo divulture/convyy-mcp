@@ -1,15 +1,54 @@
 import http from "node:http";
+import { randomUUID } from "node:crypto";
 
 import { createDefaultTools } from "../tools/defaultTools";
 import type { JsonRpcRequest, JsonRpcResponse } from "../server/mcpProtocol";
 import { createJsonRpcError, createJsonRpcResult } from "../server/mcpProtocol";
 import { createStdioMessageReader, writeFramedJsonRpcMessage } from "../server/stdioTransport";
 import { buildMcpToolsList } from "../server/toolCatalog";
-import type { RelayPullResponse } from "./relayProtocol";
+import {
+  CONVYY_RELAY_CLIENT_ID_HEADER,
+  CONVYY_RELAY_PROTOCOL_VERSION,
+  CONVYY_RELAY_TOKEN_HEADER,
+  type RelayHandshakeRequest,
+  type RelayHandshakeResponse,
+  type RelayPullResponse,
+} from "./relayProtocol";
 import { createRelayQueue } from "./relayQueue";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+// Board responses to tools/call carry `structuredContent` but omit the
+// MCP-required `content` field. Strict MCP clients (e.g. mcpo / the python
+// `mcp` SDK) reject such a CallToolResult. Backfill a text `content` block so
+// the relay path stays spec-compliant regardless of what the board sends.
+function ensureToolResultContent(request: JsonRpcRequest, response: JsonRpcResponse): JsonRpcResponse {
+  if (request.method !== "tools/call") {
+    return response;
+  }
+  const result = (response as unknown as Record<string, unknown>).result;
+  if (!isRecord(result) || Array.isArray(result.content)) {
+    return response;
+  }
+  const structured = isRecord(result.structuredContent) ? result.structuredContent : null;
+  const summary =
+    structured && typeof structured.summary === "string"
+      ? structured.summary
+      : "Tool call completed.";
+  return {
+    ...response,
+    result: {
+      ...result,
+      content: [{ type: "text", text: summary }],
+      isError: typeof result.isError === "boolean" ? result.isError : false,
+    },
+  } as JsonRpcResponse;
 }
 
 function parseJsonBody(rawBody: string): unknown {
@@ -37,10 +76,29 @@ function writeJson(response: http.ServerResponse, statusCode: number, payload: u
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(body, "utf8"),
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Convyy-Relay-Client-Id, X-Convyy-Relay-Token",
     "Access-Control-Allow-Private-Network": "true",
   });
   response.end(body);
+}
+
+function readHandshakeRequest(body: unknown): RelayHandshakeRequest | null {
+  if (
+    !isRecord(body)
+    || !isNonEmptyString(body.protocolVersion)
+    || !isNonEmptyString(body.clientId)
+    || !isNonEmptyString(body.boardId)
+    || !isNonEmptyString(body.nonce)
+  ) {
+    return null;
+  }
+
+  return {
+    protocolVersion: body.protocolVersion,
+    clientId: body.clientId,
+    boardId: body.boardId,
+    nonce: body.nonce,
+  };
 }
 
 /**
@@ -94,6 +152,8 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
   const requestTimeoutMs = options.requestTimeoutMs ?? 15_000;
   const relayQueue = createRelayQueue();
   const tools = createDefaultTools();
+  const relayInstanceId = randomUUID();
+  const browserSessions = new Map<string, { boardId: string; sessionToken: string }>();
 
   const proc = (globalThis as typeof globalThis & {
     process?: {
@@ -118,7 +178,7 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
     if (request.method === "OPTIONS") {
       response.writeHead(204, {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Headers": "Content-Type, X-Convyy-Relay-Client-Id, X-Convyy-Relay-Token",
         "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
         // Chrome's Private Network Access requires this on the preflight when a
         // public HTTPS origin (the hosted board) calls a loopback relay.
@@ -132,12 +192,65 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
     if (request.method === "GET" && request.url === "/health") {
       writeJson(response, 200, {
         ok: true,
+        protocolVersion: CONVYY_RELAY_PROTOCOL_VERSION,
+        instanceId: relayInstanceId,
+        handshakeRequired: true,
         pendingCount: relayQueue.pendingCount(),
       });
       return;
     }
 
+    if (request.method === "POST" && request.url === "/browser/handshake") {
+      try {
+        const handshake = readHandshakeRequest(parseJsonBody(await readRequestBody(request)));
+        if (!handshake || handshake.protocolVersion !== CONVYY_RELAY_PROTOCOL_VERSION) {
+          writeJson(response, 400, { ok: false, error: "Invalid relay handshake request." });
+          return;
+        }
+
+        const sessionToken = randomUUID();
+        browserSessions.set(handshake.clientId, {
+          boardId: handshake.boardId,
+          sessionToken,
+        });
+
+        const payload: RelayHandshakeResponse = {
+          ok: true,
+          protocolVersion: CONVYY_RELAY_PROTOCOL_VERSION,
+          instanceId: relayInstanceId,
+          clientId: handshake.clientId,
+          boardId: handshake.boardId,
+          nonce: handshake.nonce,
+          sessionToken,
+        };
+        writeJson(response, 200, payload);
+      } catch (error) {
+        writeJson(response, 500, {
+          ok: false,
+          error: error instanceof Error ? error.message : "Unknown relay handshake error.",
+        });
+      }
+      return;
+    }
+
+    const authenticatedBrowserSession = (() => {
+      const clientId = request.headers[CONVYY_RELAY_CLIENT_ID_HEADER];
+      const sessionToken = request.headers[CONVYY_RELAY_TOKEN_HEADER];
+      if (typeof clientId !== "string" || typeof sessionToken !== "string") {
+        return null;
+      }
+      const session = browserSessions.get(clientId);
+      if (!session || session.sessionToken !== sessionToken) {
+        return null;
+      }
+      return { clientId, boardId: session.boardId };
+    })();
+
     if (request.method === "GET" && request.url === "/browser/pull") {
+      if (!authenticatedBrowserSession) {
+        writeJson(response, 403, { ok: false, error: "Relay handshake required." });
+        return;
+      }
       const payload: RelayPullResponse = {
         request: relayQueue.pull(),
       };
@@ -146,6 +259,10 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
     }
 
     if (request.method === "POST" && request.url === "/browser/push") {
+      if (!authenticatedBrowserSession) {
+        writeJson(response, 403, { ok: false, error: "Relay handshake required." });
+        return;
+      }
       try {
         const body = parseJsonBody(await readRequestBody(request));
         if (!isRecord(body) || typeof body.relayRequestId !== "string") {
@@ -247,7 +364,7 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
         }
         const result = await dispatch(request);
         if (result) {
-          writeFramedJsonRpcMessage(result);
+          writeFramedJsonRpcMessage(ensureToolResultContent(request, result));
         }
       } catch (error) {
         writeFramedJsonRpcMessage(
