@@ -1,5 +1,6 @@
 import http from "node:http";
 import { randomUUID } from "node:crypto";
+import fs from "node:fs";
 
 import { createDefaultTools } from "../tools/defaultTools";
 import type { JsonRpcRequest, JsonRpcResponse } from "../server/mcpProtocol";
@@ -7,14 +8,27 @@ import { createJsonRpcError, createJsonRpcResult } from "../server/mcpProtocol";
 import { createStdioMessageReader, writeFramedJsonRpcMessage } from "../server/stdioTransport";
 import { buildMcpToolsList } from "../server/toolCatalog";
 import {
+  CONVYY_RELAY_ALLOWED_HOSTS,
+  CONVYY_RELAY_AGENT_TOKEN_HEADER,
   CONVYY_RELAY_CLIENT_ID_HEADER,
   CONVYY_RELAY_PROTOCOL_VERSION,
   CONVYY_RELAY_TOKEN_HEADER,
+  getRelayAgentTokenPath,
+  isAllowedRelayHost,
+  isAllowedRelayOrigin,
   type RelayHandshakeRequest,
   type RelayHandshakeResponse,
   type RelayPullResponse,
 } from "./relayProtocol";
 import { createRelayQueue } from "./relayQueue";
+
+const MAX_REQUEST_BODY_BYTES = 2 * 1024 * 1024;
+
+class PayloadTooLargeError extends Error {
+  constructor() {
+    super("Payload too large.");
+  }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -58,26 +72,79 @@ function parseJsonBody(rawBody: string): unknown {
   return JSON.parse(rawBody) as unknown;
 }
 
+function isPayloadTooLargeError(error: unknown): error is PayloadTooLargeError {
+  return error instanceof PayloadTooLargeError;
+}
+
 function readRequestBody(request: http.IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     let rawBody = "";
+    let size = 0;
+    let settled = false;
     request.setEncoding("utf8");
-    request.on("data", (chunk) => {
+    const cleanup = () => {
+      request.off("data", onData);
+      request.off("end", onEnd);
+      request.off("error", onError);
+    };
+    const onData = (chunk: string) => {
+      if (settled) {
+        return;
+      }
+      size += Buffer.byteLength(chunk, "utf8");
+      if (size > MAX_REQUEST_BODY_BYTES) {
+        settled = true;
+        cleanup();
+        request.resume();
+        reject(new PayloadTooLargeError());
+        return;
+      }
       rawBody += chunk;
-    });
-    request.on("end", () => resolve(rawBody));
-    request.on("error", (error) => reject(error));
+    };
+    const onEnd = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      resolve(rawBody);
+    };
+    const onError = (error: Error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    request.on("data", onData);
+    request.on("end", onEnd);
+    request.on("error", onError);
   });
 }
 
-function writeJson(response: http.ServerResponse, statusCode: number, payload: unknown) {
+function buildCorsHeaders(origin: string | undefined): http.OutgoingHttpHeaders {
+  if (!origin || !isAllowedRelayOrigin(origin)) {
+    return {};
+  }
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Headers": "Content-Type, X-Convyy-Relay-Client-Id, X-Convyy-Relay-Token",
+    "Access-Control-Allow-Private-Network": "true",
+  };
+}
+
+function writeJson(
+  response: http.ServerResponse,
+  statusCode: number,
+  payload: unknown,
+  origin?: string,
+) {
   const body = JSON.stringify(payload);
   response.writeHead(statusCode, {
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(body, "utf8"),
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type, X-Convyy-Relay-Client-Id, X-Convyy-Relay-Token",
-    "Access-Control-Allow-Private-Network": "true",
+    ...buildCorsHeaders(origin),
   });
   response.end(body);
 }
@@ -113,12 +180,17 @@ export async function forwardAgentRequest(
   request: JsonRpcRequest,
   timeoutMs: number,
 ): Promise<JsonRpcResponse | null> {
+  const tokenPath = getRelayAgentTokenPath(port);
+  const agentToken = fs.readFileSync(tokenPath, "utf8").trim();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs + 2_000);
   try {
     const httpResponse = await fetch(`http://${host}:${port}/agent/request`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        [CONVYY_RELAY_AGENT_TOKEN_HEADER]: agentToken,
+      },
       body: JSON.stringify(request),
       signal: controller.signal,
     });
@@ -144,16 +216,49 @@ export interface ConvyyMcpDevRelayOptions {
   host?: string;
   port?: number;
   requestTimeoutMs?: number;
+  sessionTtlMs?: number;
+  maxSessions?: number;
+  now?: () => number;
 }
 
 export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): http.Server {
   const host = options.host ?? "127.0.0.1";
   const port = options.port ?? 4318;
   const requestTimeoutMs = options.requestTimeoutMs ?? 15_000;
+  const sessionTtlMs = options.sessionTtlMs ?? 30 * 60 * 1000;
+  const maxSessions = options.maxSessions ?? 50;
+  const now = options.now ?? Date.now;
   const relayQueue = createRelayQueue();
   const tools = createDefaultTools();
   const relayInstanceId = randomUUID();
-  const browserSessions = new Map<string, { boardId: string; sessionToken: string }>();
+  const browserSessions = new Map<string, {
+    boardId: string;
+    sessionToken: string;
+    expiresAt: number;
+  }>();
+  const tokenPath = getRelayAgentTokenPath(port);
+
+  function pruneExpiredBrowserSessions(nowTs: number) {
+    for (const [clientId, session] of browserSessions.entries()) {
+      if (session.expiresAt <= nowTs) {
+        browserSessions.delete(clientId);
+      }
+    }
+  }
+
+  function evictOldestBrowserSession() {
+    let oldestClientId: string | null = null;
+    let oldestExpiresAt = Number.POSITIVE_INFINITY;
+    for (const [clientId, session] of browserSessions.entries()) {
+      if (session.expiresAt < oldestExpiresAt) {
+        oldestExpiresAt = session.expiresAt;
+        oldestClientId = clientId;
+      }
+    }
+    if (oldestClientId) {
+      browserSessions.delete(oldestClientId);
+    }
+  }
 
   const proc = (globalThis as typeof globalThis & {
     process?: {
@@ -164,6 +269,7 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
   }).process;
 
   let isOwner = false;
+  let agentToken: string | null = null;
   // Captured from the MCP `initialize` handshake (clientInfo.name). The board
   // never sees `initialize` (it's answered locally below), so we capture the
   // agent name here and inject it into every relayed tool call for the cursor.
@@ -175,14 +281,27 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
       return;
     }
 
+    const origin = typeof request.headers.origin === "string" ? request.headers.origin : undefined;
+    if (!isAllowedRelayOrigin(origin)) {
+      writeJson(response, 403, { ok: false, error: "Origin not allowed." });
+      return;
+    }
+
+    const hostHeader = typeof request.headers.host === "string" ? request.headers.host : undefined;
+    if (!isAllowedRelayHost(hostHeader)) {
+      writeJson(response, 403, {
+        ok: false,
+        error: `Host not allowed. Expected one of: ${CONVYY_RELAY_ALLOWED_HOSTS.join(", ")}.`,
+      }, origin);
+      return;
+    }
+
     if (request.method === "OPTIONS") {
       response.writeHead(204, {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type, X-Convyy-Relay-Client-Id, X-Convyy-Relay-Token",
+        ...buildCorsHeaders(origin),
         "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
         // Chrome's Private Network Access requires this on the preflight when a
         // public HTTPS origin (the hosted board) calls a loopback relay.
-        "Access-Control-Allow-Private-Network": "true",
         "Access-Control-Max-Age": "86400",
       });
       response.end();
@@ -196,7 +315,7 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
         instanceId: relayInstanceId,
         handshakeRequired: true,
         pendingCount: relayQueue.pendingCount(),
-      });
+      }, origin);
       return;
     }
 
@@ -204,14 +323,21 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
       try {
         const handshake = readHandshakeRequest(parseJsonBody(await readRequestBody(request)));
         if (!handshake || handshake.protocolVersion !== CONVYY_RELAY_PROTOCOL_VERSION) {
-          writeJson(response, 400, { ok: false, error: "Invalid relay handshake request." });
+          writeJson(response, 400, { ok: false, error: "Invalid relay handshake request." }, origin);
           return;
+        }
+
+        const nowTs = now();
+        pruneExpiredBrowserSessions(nowTs);
+        if (browserSessions.size >= maxSessions) {
+          evictOldestBrowserSession();
         }
 
         const sessionToken = randomUUID();
         browserSessions.set(handshake.clientId, {
           boardId: handshake.boardId,
           sessionToken,
+          expiresAt: nowTs + sessionTtlMs,
         });
 
         const payload: RelayHandshakeResponse = {
@@ -223,12 +349,16 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
           nonce: handshake.nonce,
           sessionToken,
         };
-        writeJson(response, 200, payload);
+        writeJson(response, 200, payload, origin);
       } catch (error) {
+        if (isPayloadTooLargeError(error)) {
+          writeJson(response, 413, { ok: false, error: error.message }, origin);
+          return;
+        }
         writeJson(response, 500, {
           ok: false,
           error: error instanceof Error ? error.message : "Unknown relay handshake error.",
-        });
+        }, origin);
       }
       return;
     }
@@ -240,7 +370,14 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
         return null;
       }
       const session = browserSessions.get(clientId);
-      if (!session || session.sessionToken !== sessionToken) {
+      if (!session) {
+        return null;
+      }
+      if (session.expiresAt <= now()) {
+        browserSessions.delete(clientId);
+        return null;
+      }
+      if (session.sessionToken !== sessionToken) {
         return null;
       }
       return { clientId, boardId: session.boardId };
@@ -248,25 +385,25 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
 
     if (request.method === "GET" && request.url === "/browser/pull") {
       if (!authenticatedBrowserSession) {
-        writeJson(response, 403, { ok: false, error: "Relay handshake required." });
+        writeJson(response, 403, { ok: false, error: "Relay handshake required." }, origin);
         return;
       }
       const payload: RelayPullResponse = {
         request: relayQueue.pull(),
       };
-      writeJson(response, 200, payload);
+      writeJson(response, 200, payload, origin);
       return;
     }
 
     if (request.method === "POST" && request.url === "/browser/push") {
       if (!authenticatedBrowserSession) {
-        writeJson(response, 403, { ok: false, error: "Relay handshake required." });
+        writeJson(response, 403, { ok: false, error: "Relay handshake required." }, origin);
         return;
       }
       try {
         const body = parseJsonBody(await readRequestBody(request));
         if (!isRecord(body) || typeof body.relayRequestId !== "string") {
-          writeJson(response, 400, { ok: false, error: "Invalid relay push body." });
+          writeJson(response, 400, { ok: false, error: "Invalid relay push body." }, origin);
           return;
         }
 
@@ -274,12 +411,16 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
           body.relayRequestId,
           (body.response as JsonRpcResponse | null | undefined) ?? null,
         );
-        writeJson(response, 200, { ok: accepted });
+        writeJson(response, 200, { ok: accepted }, origin);
       } catch (error) {
+        if (isPayloadTooLargeError(error)) {
+          writeJson(response, 413, { ok: false, error: error.message }, origin);
+          return;
+        }
         writeJson(response, 500, {
           ok: false,
           error: error instanceof Error ? error.message : "Unknown bridge push error.",
-        });
+        }, origin);
       }
       return;
     }
@@ -289,24 +430,35 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
     // The request is queued just like a local stdio tool call and resolved by
     // the same browser pull/push round trip.
     if (request.method === "POST" && request.url === "/agent/request") {
+      if (
+        !agentToken
+        || request.headers[CONVYY_RELAY_AGENT_TOKEN_HEADER] !== agentToken
+      ) {
+        writeJson(response, 403, { ok: false, error: "Agent token required." }, origin);
+        return;
+      }
       try {
         const body = parseJsonBody(await readRequestBody(request));
         if (!isRecord(body) || body.jsonrpc !== "2.0" || typeof body.method !== "string") {
-          writeJson(response, 400, { ok: false, error: "Invalid agent request body." });
+          writeJson(response, 400, { ok: false, error: "Invalid agent request body." }, origin);
           return;
         }
         const result = await relayQueue.enqueue(body as unknown as JsonRpcRequest, requestTimeoutMs);
-        writeJson(response, 200, { ok: true, response: result });
+        writeJson(response, 200, { ok: true, response: result }, origin);
       } catch (error) {
+        if (isPayloadTooLargeError(error)) {
+          writeJson(response, 413, { ok: false, error: error.message }, origin);
+          return;
+        }
         writeJson(response, 200, {
           ok: false,
           error: error instanceof Error ? error.message : "Convyy relay failed to route the agent request.",
-        });
+        }, origin);
       }
       return;
     }
 
-    writeJson(response, 404, { error: "Not found" });
+    writeJson(response, 404, { error: "Not found" }, origin);
   });
 
   // Bridge this process's own MCP client (Claude/Codex) over stdio. `dispatch`
@@ -396,10 +548,22 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
 
   server.on("listening", () => {
     isOwner = true;
+    agentToken = randomUUID();
+    fs.writeFileSync(tokenPath, agentToken, { mode: 0o600 });
     // We own the relay: serve the board (pull/push), other agents (/agent/request),
     // and bridge our own MCP client straight into the local queue.
     attachStdioBridge((request) => relayQueue.enqueue(request, requestTimeoutMs));
   });
+
+  function cleanupAgentTokenFile() {
+    if (!isOwner) {
+      return;
+    }
+    fs.rmSync(tokenPath, { force: true });
+    agentToken = null;
+  }
+
+  server.on("close", cleanupAgentTokenFile);
 
   // When the MCP client (Claude/Codex) closes the session it closes stdin.
   // Owners must release the relay port promptly so the next session can claim
@@ -407,6 +571,7 @@ export function runConvyyMcpDevRelay(options: ConvyyMcpDevRelayOptions = {}): ht
   function shutdown() {
     if (isOwner) {
       server.close();
+      cleanupAgentTokenFile();
     }
     proc?.exit(0);
   }

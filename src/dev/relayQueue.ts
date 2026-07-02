@@ -1,6 +1,8 @@
 import type { JsonRpcRequest, JsonRpcResponse } from "../server/mcpProtocol";
 import type { PendingRelayRequest } from "./relayProtocol";
 
+export const MAX_RELAY_PENDING_REQUESTS = 100;
+
 interface DeferredResponse {
   resolve: (response: JsonRpcResponse | null) => void;
   reject: (error: Error) => void;
@@ -27,6 +29,9 @@ export function createRelayQueue(): RelayQueue {
 
   return {
     enqueue(message, timeoutMs = 15_000) {
+      if (pendingRequests.length >= MAX_RELAY_PENDING_REQUESTS) {
+        throw new Error("Relay queue is full.");
+      }
       const relayRequestId = createRelayRequestId();
       const pendingRequest: PendingRelayRequest = {
         relayRequestId,
