@@ -1,21 +1,99 @@
-MIT License
+# Convyy MCP — License / Лицензия
 
-Copyright (c) 2026 divulture
+The Russian version prevails. При расхождении действует русская версия.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+---
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+## English
+
+**Convyy MCP — Proprietary License**
+
+Copyright © 2026 Dmitriy Rostislavovich Ivanov ("the Rightsholder"). All rights reserved.
+
+1. **Software.** "Convyy MCP" means the program, the installer, scripts, documentation and all other files in the
+   `divulture/convyy-mcp` repository and its releases ("the Software"). The Software is licensed, not sold.
+
+2. **License.** The Rightsholder grants you a free of charge, non-exclusive, non-transferable, revocable license to
+   install and run unmodified copies of the Software solely to connect your own AI applications to the Convyy service.
+
+3. **Restrictions.** Except as expressly allowed in section 2, you may not:
+   1. copy the Software, except for the installation and copies technically necessary to use it;
+   2. modify, adapt, translate or create derivative works of the Software or any part of it;
+   3. decompile, disassemble, reverse engineer or otherwise attempt to obtain the structure or source of the Software,
+      except to the extent such activity is expressly permitted by applicable law notwithstanding this restriction;
+   4. publish, distribute, sell, rent, lend, sublicense, host, mirror or otherwise make the Software or any part of it
+      available to third parties;
+   5. remove or alter any copyright, license or other notices;
+   6. use the Software or any part of it to create a competing product or to connect to services other than Convyy;
+   7. use the Software in violation of applicable law.
+
+   Viewing this repository on GitHub, and any copy GitHub itself creates through its features, is subject to the
+   GitHub Terms of Service and grants no rights beyond them.
+
+4. **Third-party components.** The Software includes or uses third-party components (including Node.js) that are
+   licensed under their own terms, listed in `NOTICE`. Nothing in this License limits your rights under those terms.
+
+
+5. **Ownership.** All rights not expressly granted are reserved by the Rightsholder.
+
+6. **Termination.** This License ends automatically if you breach any of its terms. On termination you must stop
+   using the Software and delete all copies.
+
+7. **No warranty. Limitation of liability.** The Software is provided "as is", without warranty of any kind. To the
+   maximum extent permitted by applicable law, the Rightsholder is not liable for any damages arising from the use of
+   or inability to use the Software.
+
+8. **Governing law and disputes.** As set out in the Convyy Terms of Use.
+
+9. **Contact.** support@convyy.com
+
+---
+
+## Русский
+
+**Convyy MCP — лицензия правообладателя**
+
+© 2026 Иванов Дмитрий Ростиславович («Правообладатель»). Все права защищены.
+
+1. **Программа.** «Convyy MCP» — программа, установщик, скрипты, документация и все иные файлы репозитория
+   `divulture/convyy-mcp` и его релизов («Программа»). Программа предоставляется по лицензии, а не продаётся.
+
+2. **Лицензия.** Правообладатель предоставляет вам безвозмездную простую (неисключительную), непередаваемую,
+   отзывную лицензию на установку и запуск неизменённых экземпляров Программы исключительно для подключения ваших
+   AI-приложений к сервису Convyy.
+
+3. **Ограничения.** Кроме прямо разрешённого в пункте 2, запрещается:
+   1. копировать Программу, за исключением установки и копий, технически необходимых для её использования;
+   2. изменять, адаптировать, переводить Программу или её части, создавать производные произведения;
+   3. декомпилировать, дизассемблировать, исследовать устройство Программы или иным образом пытаться получить её
+      структуру или исходный код, за исключением случаев, прямо разрешённых применимым законом независимо от
+      настоящего ограничения;
+   4. публиковать, распространять, продавать, сдавать в аренду, передавать во временное пользование,
+      сублицензировать, размещать, зеркалировать Программу или её части или иным образом предоставлять к ним доступ
+      третьим лицам;
+   5. удалять или изменять уведомления об авторских правах, лицензии и иные уведомления;
+   6. использовать Программу или её части для создания конкурирующего продукта или для подключения к сервисам,
+      отличным от Convyy;
+   7. использовать Программу с нарушением применимого законодательства.
+
+   Просмотр этого репозитория на GitHub и копии, создаваемые самим GitHub его функциями, регулируются Условиями
+   использования GitHub и не дают прав сверх них.
+
+4. **Сторонние компоненты.** Программа включает или использует сторонние компоненты (в том числе Node.js),
+   распространяемые на собственных условиях, перечисленных в файле `NOTICE`. Настоящая лицензия не ограничивает ваших
+   прав по этим условиям.
+
+
+5. **Права.** Все права, прямо не предоставленные настоящей лицензией, сохраняются за Правообладателем.
+
+6. **Прекращение.** Лицензия прекращается автоматически при нарушении любого её условия. После прекращения вы
+   обязаны прекратить использование Программы и удалить все её экземпляры.
+
+7. **Отказ от гарантий. Ограничение ответственности.** Программа предоставляется «как есть», без каких-либо
+   гарантий. В максимальной степени, допускаемой применимым законодательством, Правообладатель не несёт
+   ответственности за убытки, возникшие в связи с использованием Программы или невозможностью её использования.
+
+8. **Применимое право и споры.** В соответствии с Условиями использования Convyy.
+
+9. **Контакты.** support@convyy.com

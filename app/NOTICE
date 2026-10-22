@@ -1,0 +1,13 @@
+Convyy MCP: third-party components
+
+Convyy MCP itself is proprietary, see LICENSE. It contains no third-party npm packages: the program is built into a few
+script files that use only the built-in modules of Node.js.
+
+Node.js, MIT license (the license file also lists the licenses of the components Node.js bundles)
+  https://github.com/nodejs/node/blob/main/LICENSE
+  Convyy MCP runs on Node.js. It is not part of the files of this repository: it is the Node.js already on your computer
+  or, if there is none, the official, unmodified build v24.22.0 that the installer downloads from https://nodejs.org
+  and checks by its SHA-256. Archive releases carry that same build in runtime/ together with its complete license
+  (runtime/LICENSE). Do not modify it.
+
+This delivery is not code-signed or notarized.
