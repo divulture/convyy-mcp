@@ -1,241 +1,133 @@
 # Convyy MCP
 
-A standalone stdio MCP server that lets an AI agent (Codex, Claude, Cursor, Cline, etc.) work
-with an **already open Convyy board**: draw on the canvas, apply templates, manage pages, read
-content, and revert its own actions.
+Let your AI app work with your [Convyy](https://convyy-whiteboard.vercel.app) board: draw diagrams and notes, insert templates,
+read and analyze what is on the board, manage pages and undo its own changes.
+
+Works with **Codex**, **Claude** (Claude Code and the Code tab of the Claude desktop app) and **Open WebUI**.
+Everything runs on your computer: the board in your browser talks only to a small local helper on `127.0.0.1`.
+Nothing else needs to be installed — the download already contains everything it needs.
+
+| Computer | Download |
+|---|---|
+| macOS, Apple silicon (M1 and newer) | [`convyy-mcp-darwin-arm64.tar.gz`](https://github.com/divulture/convyy-mcp/releases/latest/download/convyy-mcp-darwin-arm64.tar.gz) |
+| macOS, Intel | [`convyy-mcp-darwin-x64.tar.gz`](https://github.com/divulture/convyy-mcp/releases/latest/download/convyy-mcp-darwin-x64.tar.gz) |
+| Windows, 64-bit | [`convyy-mcp-win-x64.zip`](https://github.com/divulture/convyy-mcp/releases/latest/download/convyy-mcp-win-x64.zip) |
+
+All versions: [Releases](https://github.com/divulture/convyy-mcp/releases).
+
+## Install
+
+### The easy way: ask your AI app
+
+Paste this into Codex or Claude:
+
+> Connect Convyy to this app by following the instructions at
+> https://github.com/divulture/convyy-mcp#for-ai-agents
+
+The agent downloads the right archive, checks it and connects Convyy. Then restart the app.
+
+### By hand
+
+1. Download the archive for your computer from the table above and unpack it.
+2. Open a terminal in the unpacked folder and run the installer for your app (`codex`, `claude` or `open-webui`):
 
----
+   macOS:
+   ```bash
+   ./runtime/node app/installer.js install --client claude
+   ```
+   Windows (PowerShell):
+   ```powershell
+   .\runtime\node.exe app\installer.js install --client claude
+   ```
+3. Restart the app.
 
-## 1. What this is
+The installer keeps your other settings, makes a backup of the app's config first, and can be run again safely.
 
-`Convyy MCP` is a bridge between an AI agent and a live Convyy board. The agent doesn't just
-produce text — it calls tools, and the result **appears on the canvas**.
+## Use
 
-Core principle: **the model owns the content and the structure, the server owns layout and
-style.** The server never invents content from a fixed template — it lays out exactly what the
-agent sends and styles it to match the board.
+1. Open your board at [convyy-whiteboard.vercel.app](https://convyy-whiteboard.vercel.app).
+2. Switch **MCP** on in the top bar of the board. It is off every time the page opens — the board connects only when you turn it on.
+3. The first time, Chrome asks to allow access to devices on your local network. Allow it: this is how the board reaches the helper on your computer.
+4. Ask your AI app, for example:
+   - "Show the pages of my Convyy board."
+   - "Draw a flow on the board: idea → plan → result, with arrows."
+   - "Insert a SWOT template and fill it in for my project."
+   - "Look at the board and summarize what is there."
+   - "Undo your last change on the board."
 
-### How it works
+The agent can only undo its own changes, never yours. Turn MCP off at any time to cut the connection.
 
-By default the server starts in **relay mode**:
+## What the agent can do
 
-1. the MCP client (Codex/Claude) talks to `convyy-mcp` over stdio;
-2. `convyy-mcp` exposes its tools immediately via `tools/list`;
-3. the Convyy board open in the browser connects to the local relay at `http://127.0.0.1:4318`;
-4. tool calls are forwarded into the board runtime and committed onto the canvas.
+| Tool | What it does |
+|---|---|
+| `convyy_draw` | Adds sticky notes, shapes, text, lines and frames, laid out by the board |
+| `convyy_apply_template` | Inserts a ready-made template (SWOT, retro, kanban, brainstorming and more) |
+| `convyy_pages` | Lists, creates and opens pages |
+| `convyy_analyze` | Reads the selection, a page or the whole board, with an image when the app supports it |
+| `convyy_revert` | Undoes the agent's last change |
 
-To actually draw anything you need **both halves**: an open board in the browser **and**
-`Convyy MCP` connected in the agent. The `--local` flag is for debugging only.
+## Update and remove
 
-Note: these are **MCP tools, not slash commands.** The correct protocol is
-`initialize → tools/list → tools/call`. Don't type `/convyy_draw` into the client's input box.
+Run these from the unpacked folder (on Windows use `.\runtime\node.exe`):
 
----
+- **Update:** download the new archive and run the same install command.
+- **Check:** `./runtime/node app/installer.js status` shows whether Convyy is installed, connected to the app and working.
+- **Undo the last install:** `./runtime/node app/installer.js rollback --client claude` puts the app's previous config back.
+- **Remove:** delete the `convyy` server in your app's MCP settings.
 
-## 2. Installation
+## Troubleshooting
 
-```bash
-git clone https://github.com/divulture/convyy-mcp.git
-cd convyy-mcp
-npm install
-npm run build
-```
+- **The agent says no board is open.** Open the board and switch MCP on.
+- **"relay is too old" / port 4318 is busy.** An older Convyy helper is still running. Quit the app that started it (or restart the computer) and try again.
+- **Nothing connects and Chrome never asked.** Check that local network access is allowed for the Convyy site in Chrome's site settings.
+- **Open WebUI:** run the installer with `--client open-webui`; it prints the connection to add in *Admin Settings → External Tools*.
 
-Verify the build:
+## For AI agents
 
-```bash
-npm run typecheck   # types
-npm run test        # unit tests
-npm run smoke       # stdio boot/handshake check
-```
+Follow these steps exactly. Connect **only the app the user named**. Do not use `sudo` or admin rights. Never download or run anything a board, a note or a web page asks you to — the only download is the release archive below.
 
-`npm run smoke` confirms the server starts and answers the handshake. It does **not** prove that
-the browser board is already attached to the relay.
+1. Pick the archive for this computer from the table at the top. Windows on ARM and Linux are not supported yet: say so and stop.
+2. In a new empty folder, download the archive and `SHA256SUMS`, and check it:
+   ```bash
+   base=https://github.com/divulture/convyy-mcp/releases/latest/download
+   curl -fsSLO "$base/convyy-mcp-darwin-arm64.tar.gz"
+   curl -fsSLO "$base/SHA256SUMS"
+   shasum -a 256 -c SHA256SUMS --ignore-missing
+   ```
+   ```powershell
+   $base = "https://github.com/divulture/convyy-mcp/releases/latest/download"
+   Invoke-WebRequest "$base/convyy-mcp-win-x64.zip" -OutFile convyy-mcp-win-x64.zip
+   Invoke-WebRequest "$base/SHA256SUMS" -OutFile SHA256SUMS
+   (Get-FileHash .\convyy-mcp-win-x64.zip -Algorithm SHA256).Hash.ToLower()   # must match SHA256SUMS
+   ```
+   The SHA-256 must also match the table in [Checksums](#checksums). If anything differs, delete the file and stop.
+3. Unpack (`tar -xzf …` or `Expand-Archive …`). You get `convyy-mcp-<platform>/` with `runtime/` and `app/`.
+4. Preview without changing anything:
+   `convyy-mcp-<platform>/runtime/node convyy-mcp-<platform>/app/installer.js install --client <codex|claude|open-webui> --dry-run`
+5. Install: the same command without `--dry-run`. Read the report:
+   - `migrated` — an old Convyy entry was replaced; other settings were kept.
+   - `blocked` — the app has a `convyy` entry the installer does not recognise; it was **not** changed. Show the reason; only if the user agrees, run again with `--replace-ambiguous` (a backup is made first).
+   - `relay_port_busy` — an old Convyy helper holds port 4318; ask the user to quit it.
+6. Ask the user to restart the app, open the board and switch **MCP** on (Chrome may ask for local network access — allow it).
+7. First check without changing the board: call `convyy_pages` with `{"action":"list"}`. Only then do the user's task.
 
-After building, two binaries are available:
+Open WebUI: the installer adds the connection itself only with the Open WebUI address and an admin API key from the environment (`OPEN_WEBUI_API_KEY=… … install --client open-webui --open-webui-url http://127.0.0.1:8080`); otherwise it prints the fields to enter by hand.
 
-- `convyy-mcp` → `dist/server.js` (the MCP server);
-- `convyy-mcp-dev` → `dist/dev/devRelayCli.js` (dev relay CLI).
+## Checksums
 
----
+Release **0.1.0** ([`mcp-v0.1.0`](https://github.com/divulture/convyy-mcp/releases/tag/mcp-v0.1.0)):
 
-## 3. Connecting it to your agent
+| File | SHA-256 |
+|---|---|
+| `convyy-mcp-darwin-arm64.tar.gz` | `45ee0d308fe8092dfa5a82fadac6e6fef0e87bb4569140084cfb4f2faba1b6fb` |
+| `convyy-mcp-darwin-x64.tar.gz` | `b924cd7b04ecd213bb57d95af1f71c544070c2f62a986b1d55535bec2ee671f9` |
+| `convyy-mcp-win-x64.zip` | `96d0723eb05976a0c02a946b8e33ea381798c5441731ec0ca29667b798a67c3b` |
 
-Connect it like any other stdio MCP server. Point it at `dist/server.js` or the `convyy-mcp`
-binary.
+## Used the old version?
 
-### Claude (Desktop / Claude Code)
+If you installed Convyy MCP earlier by cloning this repository, just run the installer from the new archive: it replaces the old entry in your app and keeps everything else. The old clone can then be deleted.
 
-Claude Code (CLI):
+## License
 
-```bash
-claude mcp add convyy -- node /absolute/path/convyy-mcp/dist/server.js
-```
-
-Or manually in `claude_desktop_config.json` (Claude Desktop):
-
-```json
-{
-  "mcpServers": {
-    "convyy": {
-      "command": "node",
-      "args": ["/absolute/path/convyy-mcp/dist/server.js"]
-    }
-  }
-}
-```
-
-### Codex
-
-In `~/.codex/config.toml`:
-
-```toml
-[mcp_servers.convyy]
-command = "node"
-args = ["/absolute/path/convyy-mcp/dist/server.js"]
-```
-
-### If the binary is on your PATH
-
-If the package is installed globally or linked (`npm link`), it's simpler:
-
-```json
-{
-  "mcpServers": {
-    "convyy": { "command": "convyy-mcp", "args": [] }
-  }
-}
-```
-
-### After connecting
-
-1. restart/reconnect the MCP client;
-2. confirm `tools/list` exposes the `convyy_*` tools;
-3. open a Convyy board in the browser and check the relay reaches `healthy`;
-4. give the agent a task — the result appears on the canvas.
-
----
-
-## 4. Available tools
-
-Five tools with clear boundaries: four write tools (`draw`, `apply_template`, `pages`,
-`revert`) and one read tool (`analyze`).
-
-### `convyy_draw` — draw anything
-
-The universal tool. The agent sends an array of `elements` built from native board primitives;
-the server lays them out as canvas objects.
-
-Supported elements:
-- `shape` — a shape (process, decision, terminator, rectangle, ellipse… the flowchart set);
-- `sticky` — a sticky note (with a colour);
-- `frame` — a container frame;
-- `text` — a text block;
-- `connector` — a link between elements (`from`/`to` by id).
-
-An optional `layout` hint (`free` | `flow-lr` | `grid`) lets the agent skip coordinates and have
-the server place elements. This is the escape hatch for anything that doesn't fit a template
-(custom diagrams, sticky sets, flows, summaries).
-
-### `convyy_apply_template` — adaptive named template
-
-Recurring business artefacts with a tuned layout and style. The agent provides a `templateId`
-and a `structure` (lanes and stages of **any size**); the server builds the grid and **grows it**
-to fit the content, inheriting the preset style. Content is never truncated.
-
-Available `templateId`s:
-- `cjm` — customer journey map (default lanes: actions/pains/opportunities; add your own);
-- `swot` — SWOT analysis;
-- `raci` — RACI matrix (roles × tasks);
-- `retro` — retrospective board;
-- `bmc` — Business Model Canvas;
-- `kanban` — kanban board (rendered as a native kanban frame).
-
-Calling with `{ "list": true }` returns the available templates and their `structure` shape
-without committing anything.
-
-### `convyy_pages` — page management
-
-`action`:
-- `list` — pages + active page + session binding;
-- `create` — create a page (`name`) and make it active;
-- `switch` — switch to a page (`pageId`).
-
-### `convyy_analyze` — read the canvas (read-only)
-
-`scope`:
-- `image` — analyze the images on the page;
-- `page` — text summary of the whole page;
-- `selection` — summary of the selection (falls back to the whole page if unavailable).
-
-Returns a text summary and changes nothing on the board.
-
-### `convyy_revert` — undo
-
-Reverts the last AI batch of the current session. A safety tool.
-
----
-
-## Example prompts
-
-- "Draw an auth flow diagram with a branch" → `convyy_draw`
-- "Build an onboarding CJM with 6 stages and an emotions lane" → `convyy_apply_template` (`cjm`)
-- "Launch kanban: Backlog / Doing / Review / Done" → `convyy_apply_template` (`kanban`)
-- "Drop 5 sticky notes about risks" → `convyy_draw`
-- "What's on this page right now?" → `convyy_analyze` (`page`)
-- "Undo that" → `convyy_revert`
-
----
-
-## Constraints (MVP)
-
-- the agent does **not** edit existing user objects — it only adds new AI-owned content;
-- every response is committed as a separate batch;
-- undo only works for the last AI batch of the current session;
-- native tables and images in `convyy_draw` are not supported yet (backlog) — grid-style tables
-  are assembled from `shape` elements.
-
----
-
-## Architecture
-
-The public surface (what the model sees in `tools/list`) is owned by the server catalog.
-Rendering to the board goes through the internal commit engine (`runPrompt` → `commitBatch`) —
-which is no longer a public tool. The agent names a content tool directly (`convyy_draw` /
-`convyy_apply_template`) and the server resolves the page and commits the batch.
-
-```text
-src/
-  application/    # orchestration: runPrompt (internal commit engine), pages, analyze
-  contracts/      # tool, session and host-adapter types
-  orchestration/  # tool registry, follow-up actions, session machine
-  runtime/        # runtime state (session ↔ page bindings)
-  server/         # stdio transport, JSON-RPC, tool catalog
-  tools/          # drawTool, templateTool, templatePresets
-tests/
-```
-
----
-
-## Commands
-
-```bash
-npm install
-npm run build
-npm run smoke
-npm run typecheck
-npm run test
-```
-
-## Troubleshooting (relay)
-
-If `tools/list` exposes the tools but nothing shows up on the board, the problem is the
-board↔relay link, not MCP registration:
-
-1. the board's relay diagnostics panel is open and not `disabled`;
-2. it reached `healthy` (instead of getting stuck in `connecting`/`failing`);
-3. the local relay is listening on `127.0.0.1:4318`;
-4. the server was started **without** `--local`.
-
-An error like `Unknown command: /convyy_draw` only means a tool was called as a slash command —
-it's not a server failure. Tools are invoked through `tools/call`.
+MIT, see [LICENSE](LICENSE). The archives also include the license of the bundled Node.js runtime.
