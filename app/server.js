@@ -630,7 +630,7 @@ function isAllowedRelayHost(hostHeader) {
     return false;
   }
 }
-var CONVYY_RELAY_REVISION = 2;
+var CONVYY_RELAY_REVISION = 3;
 var CONVYY_RELAY_VERSION = "0.1.0";
 var CONVYY_RELAY_MIN_COMPATIBLE_REVISION = 2;
 var CONVYY_RELAY_DEFAULT_IDLE_EXIT_MS = 10 * 60 * 1e3;

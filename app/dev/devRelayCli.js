@@ -602,8 +602,6 @@ var CONVYY_RELAY_ALLOWED_ORIGIN_SUFFIXES = [
   "http://127.0.0.1",
   "https://convyy.ru",
   "https://www.convyy.ru",
-  "https://convyy.com",
-  "https://www.convyy.com",
   // Test deployments on Vercel.
   "https://whiteboard-sepia.vercel.app",
   "https://convyy-whiteboard.vercel.app"
@@ -679,7 +677,7 @@ function isAllowedRelayHost(hostHeader) {
     return false;
   }
 }
-var CONVYY_RELAY_REVISION = 2;
+var CONVYY_RELAY_REVISION = 3;
 var CONVYY_RELAY_VERSION = "0.1.0";
 var CONVYY_RELAY_DEFAULT_IDLE_EXIT_MS = 10 * 60 * 1e3;
 var CONVYY_RELAY_HEARTBEAT_INTERVAL_MS = 60 * 1e3;
