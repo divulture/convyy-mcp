@@ -600,8 +600,11 @@ var RELAY_ROUTING_CODES = {
 var CONVYY_RELAY_ALLOWED_ORIGIN_SUFFIXES = [
   "http://localhost",
   "http://127.0.0.1",
+  "https://convyy.ru",
+  "https://www.convyy.ru",
   "https://convyy.com",
   "https://www.convyy.com",
+  // Test deployments on Vercel.
   "https://whiteboard-sepia.vercel.app",
   "https://convyy-whiteboard.vercel.app"
 ];

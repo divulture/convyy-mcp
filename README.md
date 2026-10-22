@@ -1,6 +1,6 @@
 # Convyy MCP
 
-[Convyy](https://convyy-whiteboard.vercel.app) is a free, private online board for ideas, diagrams and notes. It works in your
+[Convyy](https://convyy.ru) is a free, private online board for ideas, diagrams and notes. It works in your
 browser and your data stays with you. Convyy MCP connects an AI app — Codex, Claude or Open WebUI — to your board, so it can
 draw on it, read it and analyze it.
 
@@ -31,7 +31,7 @@ draw on it, read it and analyze it.
    No Node.js on your computer? Run `./install.sh --client claude` (macOS) or `.\install.ps1 -Client claude` (Windows PowerShell) instead — it sets everything up for you.
 3. Restart the app.
 
-**Then:** open your [board](https://convyy-whiteboard.vercel.app) and switch **MCP** on. The first time, Chrome asks to allow access to your local network — allow it.
+**Then:** open your [board](https://convyy.ru) and switch **MCP** on. The first time, Chrome asks to allow access to your local network — allow it.
 
 ## For AI agents
 
