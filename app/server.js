@@ -95,7 +95,7 @@ var toolCatalog_default = {
     {
       name: "convyy_draw",
       title: "Draw On Board",
-      description: "Render any board content you compose from native primitives. Provide `elements` (shape, sticky, frame, text, image, connector); the server owns ids and styling, but YOU own the layout \u2014 give explicit x/y/width/height so nothing overlaps. LAYOUT RULES: (1) Stickies are ALWAYS square; the side equals the `width` you send (height is ignored), so reserve a square footprint and leave >=40px gaps between boxes. (2) Lay diagrams out on a clean grid (left-to-right or top-to-bottom) and connect adjacent boxes; do NOT place any shape on the straight line between two boxes you connect, or the arrow will cross it. (3) For a branch/decision, offset the branch target to the side or below with clear space so its connector has an empty corridor \u2014 the server routes arrows from the nearest edges with elbow bends, which only stays clean when you leave room. Use this for anything that does not fit a named template. THINKING SIGNAL: when you START handling the user's request, call this once with empty `elements: []` so the board shows your cursor 'thinking'; then call it again with the real `elements` once you have composed the answer.",
+      description: "Render any board content you compose from native primitives. Provide `elements` (shape, sticky, frame, textDoc, text, image, table, kanban, bpmn, emoji, line, embed, connector); the server owns ids and styling, but YOU own the layout of primitives \u2014 give explicit x/y/width/height so nothing overlaps. LAYOUT RULES: (1) Stickies are ALWAYS square; the side equals the `width` you send, otherwise `height`, otherwise 152, so reserve a square footprint and leave >=40px gaps between boxes. (2) Lay diagrams out on a clean grid (left-to-right or top-to-bottom) and connect adjacent boxes; do NOT place any shape on the straight line between two boxes you connect, or the arrow will cross it. (3) For a branch/decision, offset the branch target to the side or below with clear space so its connector has an empty corridor \u2014 the server routes arrows from the nearest edges with elbow bends, which only stays clean when you leave room. Use this for anything that does not fit a named template. For a textDoc provide Markdown (at most 100000 characters) and optional x/y/width; default width 480, minimum 240. Height is calculated with the export text layout, without waiting for the editor. The result's createdTextDocs lists persisted ids and x/y/width/height in board units after placement. Later auto-growth may increase height; convyy_analyze reports the current size. Use convyy_edit_doc to edit an existing unlocked document. Default sizes in board units: sticky 152\xD7152, shape 220\xD7120, frame 600\xD7400, text 320\xD748, image 320\xD7240, emoji 96\xD796, embed 560\xD7315, textDoc width 480 with calculated height. Elements with explicit x and y are never moved and overlaps between them are reported as warnings; grid/flow-lr place elements with missing coordinates (flow-lr currently uses the same grid). Use kind bpmn for business processes (BPMN); the server lays it out left-to-right by lanes \u2014 do not position BPMN shapes manually. BPMN expands into ordinary editable shapes, frames, arrow connectors and text labels; no pools, message flows, data objects or subprocesses. Use kind kanban for task boards; do not imitate kanban with frames and stickies. Use table for any grid of text (comparisons, RACI, schedules); use shapes only for diagrams. THINKING SIGNAL: when you START handling the user's request, call this once with empty `elements: []` so the board shows your cursor 'thinking'; then call it again with the real `elements` once you have composed the answer.",
       inputSchema: {
         type: "object",
         properties: {
@@ -114,10 +114,34 @@ var toolCatalog_default = {
           },
           elements: {
             type: "array",
-            description: "Elements you generate from the request. Each is one of: { kind:'shape', id, text, shapeType, x?,y?,width?,height?, fill? } \u2014 shapeType is one of: rectangle | rounded-rectangle | ellipse | diamond | parallelogram | star | triangle | hexagon | process | decision | terminator | data | document | database | manual-operation | preparation | internal-storage | predefined-process | stored-data | display | delay | merge | off-page-connector | direct-access-storage | comment | note | circle-plus | circle-x (default process); fill is one of: transparent | white | amber | orange | green | sky | violet | fuchsia. | { kind:'sticky', id, text, color?, x?,y?,width? } \u2014 color is one of: amber | orange | green | sky | violet | fuchsia (default amber). Use these tokens, NOT plain color names like yellow/blue/green/red. | { kind:'frame', id, title, x?,y?,width?,height? } | { kind:'text', id, text, x?,y?,width?,height?, fontSize?, bold? } | { kind:'image', id, x?,y?,width?,height? } \u2014 place a picture. Provide exactly one source: `data` (base64 or data URL, PNG/JPEG/WebP), `dataChunks` (base64 split into strings), `url` (`imageUrl`, `src`, `path`, `filePath`, `localPath` are aliases) or `assetId` (an existing asset, e.g. from convyy_analyze). Give width/height matching the image aspect ratio, or omit BOTH to auto-size from the decoded image. | { kind:'connector', from, to, label? }. Omit coordinates to let the server lay them out.",
+            description: "Elements you generate from the request. Each is one of: { kind:'shape', id, text, shapeType, x?,y?,width?,height?, fill? } \u2014 shapeType is one of: rectangle | rounded-rectangle | ellipse | diamond | parallelogram | star | triangle | hexagon | process | decision | terminator | data | document | database | manual-operation | preparation | internal-storage | predefined-process | stored-data | display | delay | merge | off-page-connector | direct-access-storage | comment | note | circle-plus | circle-x (default process); fill is one of: transparent | white | amber | orange | green | sky | violet | fuchsia. | { kind:'sticky', id, text, color?, x?,y?,width? } \u2014 color is one of: amber | orange | green | sky | violet | fuchsia (default amber). Use these tokens, NOT plain color names like yellow/blue/green/red. | { kind:'frame', id, title, x?,y?,width?,height? } | { kind:'textDoc', id?, markdown, x?,y?,width? } \u2014 formatted text document, height calculated by the server. | { kind:'kanban', id, title, columns:[{id,title}], swimlanes?:[{id,title}], cards:[{id?,title,description?,columnId,swimlaneId?,status?,color?}], x?, y?, width? } \u2014 content-sized task board. | { kind:'bpmn', id?, title?, lanes?:[{id,title}], nodes:[{id,type,text?,laneId?}], flows:[{from,to,label?}], x?,y? } \u2014 business process laid out left-to-right by lanes; shapes remain ordinary editable objects. Node type: start | end | intermediate | task | gateway-xor | gateway-and | gateway-or. Limits: 10 lanes, 150 nodes, 300 flows, title/text 200 characters, label 100. | { kind:'table', id, rows: string[][], header?, columnWidths?, merges?: [{ row, col, rowSpan?, colSpan? }], x?, y? } \u2014 width/height ignored; size computed from rows and columns. | { kind:'text', id, text, x?,y?,width?,height?, fontSize?, bold? } | { kind:'image', id, x?,y?,width?,height? } \u2014 place a picture. Provide exactly one source: `data` (base64 or data URL, PNG/JPEG/WebP), `dataChunks` (base64 split into strings), `url` (`imageUrl`, `src`, `path`, `filePath`, `localPath` are aliases) or `assetId` (an existing asset, e.g. from convyy_analyze). Give width/height matching the image aspect ratio, or omit BOTH to auto-size from the decoded image. | { kind:'emoji', id, emoji:'\u{1F525}', size?:96, x?, y? } | { kind:'line', id, points:[{x:0,y:0},{x:200,y:100}], arrow:'both', dashed?:true } \u2014 absolute coordinates, no layout shift. | { kind:'embed', id, url:'https://www.youtube.com/watch?v=dQw4w9WgXcQ', x?, y?, width?, height? } \u2014 iframe, default 560\xD7315; unsafe_url or embed_host_not_allowed on unsafe/unsupported URLs. | { kind:'connector', from, to, label?, arrow? } \u2014 endpoints may reference ids already on the target page. Optional link:'https://example.com' on sticky, shape, text, table and emoji. Unsupported kind/shapeType fails with unsupported_kind. Omit coordinates to let the server lay boxes out.",
             items: {
               type: "object",
               description: "One board element. Fields that do not apply to the element kind are ignored.",
+              if: {
+                properties: {
+                  kind: {
+                    enum: [
+                      "textDoc"
+                    ]
+                  }
+                },
+                required: [
+                  "kind"
+                ]
+              },
+              then: {
+                required: [
+                  "markdown"
+                ],
+                properties: {
+                  markdown: {
+                    type: "string",
+                    maxLength: 1e5,
+                    description: "Required for textDoc. Markdown is kept verbatim; invalid or oversized content fails the call without truncation."
+                  }
+                }
+              },
               properties: {
                 kind: {
                   type: "string",
@@ -125,8 +149,15 @@ var toolCatalog_default = {
                     "shape",
                     "sticky",
                     "frame",
+                    "textDoc",
                     "text",
                     "image",
+                    "table",
+                    "kanban",
+                    "bpmn",
+                    "emoji",
+                    "line",
+                    "embed",
                     "connector"
                   ],
                   description: "Element kind. Inferred from the other fields when omitted."
@@ -139,9 +170,308 @@ var toolCatalog_default = {
                   type: "string",
                   description: "Text of a sticky, shape or text element (also a connector endpoint key)."
                 },
+                markdown: {
+                  type: "string",
+                  maxLength: 1e5,
+                  description: "Required for textDoc. Markdown is kept verbatim; invalid or oversized content fails the call without truncation."
+                },
+                emoji: {
+                  type: "string",
+                  description: "One emoji from the board emoji picker, e.g. \u{1F525}. Invalid text/multiple emoji fail with invalid_element."
+                },
+                size: {
+                  type: "number",
+                  description: "Emoji square side, default 96."
+                },
+                points: {
+                  type: "array",
+                  minItems: 2,
+                  maxItems: 2e3,
+                  items: {
+                    type: "object",
+                    properties: {
+                      x: {
+                        type: "number"
+                      },
+                      y: {
+                        type: "number"
+                      }
+                    },
+                    required: [
+                      "x",
+                      "y"
+                    ],
+                    additionalProperties: false
+                  },
+                  description: "Free line points in absolute board coordinates, unchanged by placement. 2..2000 points."
+                },
+                arrow: {
+                  type: "string",
+                  enum: [
+                    "none",
+                    "end",
+                    "both"
+                  ],
+                  description: "Line/connector endings. Default none for a free line, end for a connector."
+                },
+                dashed: {
+                  type: "boolean",
+                  description: "Free line uses a dashed stroke (default false)."
+                },
+                link: {
+                  type: "string",
+                  description: "Safe http(s) or mailto link on sticky, shape, text, table or emoji; unsafe_url on invalid input."
+                },
                 title: {
                   type: "string",
-                  description: "Title of a frame."
+                  description: "Title of a frame, kanban or BPMN process (kanban/BPMN limit 200 characters)."
+                },
+                lanes: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 10,
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: {
+                        type: "string"
+                      },
+                      title: {
+                        type: "string",
+                        maxLength: 200
+                      }
+                    },
+                    required: [
+                      "id",
+                      "title"
+                    ],
+                    additionalProperties: false
+                  },
+                  description: "BPMN lanes, top-to-bottom. Omit for one unframed lane. All ids in a BPMN element must be unique; node laneId defaults to the first lane."
+                },
+                nodes: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 150,
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: {
+                        type: "string"
+                      },
+                      type: {
+                        type: "string",
+                        enum: [
+                          "start",
+                          "end",
+                          "intermediate",
+                          "task",
+                          "gateway-xor",
+                          "gateway-and",
+                          "gateway-or"
+                        ]
+                      },
+                      text: {
+                        type: "string",
+                        maxLength: 200
+                      },
+                      laneId: {
+                        type: "string"
+                      }
+                    },
+                    required: [
+                      "id",
+                      "type"
+                    ],
+                    additionalProperties: false
+                  },
+                  description: "Required for bpmn. Native editable shapes, laid out by the server. Unknown types/references, duplicate ids and invalid flows fail with invalid_bpmn. Exceeded counts/text limits fail with bpmn_too_large, never truncated."
+                },
+                flows: {
+                  type: "array",
+                  maxItems: 300,
+                  items: {
+                    type: "object",
+                    properties: {
+                      from: {
+                        type: "string"
+                      },
+                      to: {
+                        type: "string"
+                      },
+                      label: {
+                        type: "string",
+                        maxLength: 100
+                      }
+                    },
+                    required: [
+                      "from",
+                      "to"
+                    ],
+                    additionalProperties: false
+                  },
+                  description: "Required for bpmn. Endpoints reference nodes in this element only. No self flows, incoming flows to start or outgoing flows from end. Cycles are supported. Conditions become ordinary editable text beside arrow connectors."
+                },
+                rows: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 200,
+                  items: {
+                    type: "array",
+                    maxItems: 50,
+                    items: {
+                      type: "string"
+                    }
+                  },
+                  description: "Required for table: cell texts by row, at most 200 rows \xD7 50 columns. Short rows are padded with empty cells and a table_rows_padded warning."
+                },
+                columns: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 20,
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: {
+                        type: "string"
+                      },
+                      title: {
+                        type: "string",
+                        maxLength: 200
+                      }
+                    },
+                    required: [
+                      "id",
+                      "title"
+                    ],
+                    additionalProperties: false
+                  },
+                  description: "Kanban columns, in display order. Unique non-blank ids are referenced by cards."
+                },
+                swimlanes: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 10,
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: {
+                        type: "string"
+                      },
+                      title: {
+                        type: "string",
+                        maxLength: 200
+                      }
+                    },
+                    required: [
+                      "id",
+                      "title"
+                    ],
+                    additionalProperties: false
+                  },
+                  description: "Kanban rows, in display order. Omit for one default swimlane. Groups are not exposed."
+                },
+                cards: {
+                  type: "array",
+                  maxItems: 500,
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: {
+                        type: "string"
+                      },
+                      title: {
+                        type: "string",
+                        maxLength: 200
+                      },
+                      description: {
+                        type: "string",
+                        maxLength: 5e3
+                      },
+                      columnId: {
+                        type: "string"
+                      },
+                      swimlaneId: {
+                        type: "string",
+                        description: "Defaults to the first swimlane."
+                      },
+                      status: {
+                        type: "string",
+                        enum: [
+                          "no-status",
+                          "backlog",
+                          "todo",
+                          "in-progress",
+                          "done",
+                          "canceled"
+                        ],
+                        description: "Default no-status, matching a new UI card."
+                      },
+                      color: {
+                        type: "string",
+                        enum: [
+                          "#0a0a0a",
+                          "#737373",
+                          "#e5e5e5",
+                          "#fbbf24",
+                          "#fb923c",
+                          "#4ade80",
+                          "#38bdf8",
+                          "#a78bfa",
+                          "#e879f9"
+                        ],
+                        description: "Exact kanban UI palette value; no aliases."
+                      }
+                    },
+                    required: [
+                      "title",
+                      "columnId"
+                    ],
+                    additionalProperties: false
+                  },
+                  description: "Kanban cards in display order within each column and swimlane. Invalid refs/status/color fail with invalid_kanban; limits fail with kanban_too_large."
+                },
+                header: {
+                  type: "boolean",
+                  description: "Table first row is bold with a header fill; default true."
+                },
+                columnWidths: {
+                  type: "array",
+                  items: {
+                    type: "number",
+                    minimum: 0
+                  },
+                  description: "Table widths in px, one positive width per column. Omit for UI factory defaults (minimum track size applies)."
+                },
+                merges: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      row: {
+                        type: "integer",
+                        minimum: 0
+                      },
+                      col: {
+                        type: "integer",
+                        minimum: 0
+                      },
+                      rowSpan: {
+                        type: "integer",
+                        minimum: 1
+                      },
+                      colSpan: {
+                        type: "integer",
+                        minimum: 1
+                      }
+                    },
+                    required: [
+                      "row",
+                      "col"
+                    ],
+                    additionalProperties: false
+                  },
+                  description: "Table cell merges with zero-based row/col, spans default to 1. Out-of-bounds or overlapping ranges fail with invalid_table."
                 },
                 x: {
                   type: "number",
@@ -153,11 +483,11 @@ var toolCatalog_default = {
                 },
                 width: {
                   type: "number",
-                  description: "Width. For stickies this is the side of the square."
+                  description: "Width. Lower bound for kanban (content determines minimum). Ignored for tables and BPMN (computed from content). For stickies this is the side of the square."
                 },
                 height: {
                   type: "number",
-                  description: "Height. Ignored for stickies (always square)."
+                  description: "Height. Ignored for kanban (computed from content), tables (computed from rows), BPMN (computed from lanes/graph) and textDoc (computed from Markdown). Sticky square side when width is omitted; otherwise width takes precedence."
                 },
                 color: {
                   type: "string",
@@ -203,7 +533,7 @@ var toolCatalog_default = {
                     "circle-plus",
                     "circle-x"
                   ],
-                  description: "Shape type. Unknown values fall back to process."
+                  description: "Shape type. Default process when omitted; unknown values fail with unsupported_kind."
                 },
                 fill: {
                   type: "string",
@@ -253,7 +583,7 @@ var toolCatalog_default = {
                 },
                 url: {
                   type: "string",
-                  description: "Image source: an http(s) URL (or a local file path where supported)."
+                  description: "Image source URL/path, or YouTube video URL for embed (allowed hosts only)."
                 },
                 imageUrl: {
                   type: "string",
@@ -276,10 +606,10 @@ var toolCatalog_default = {
                   description: "Alias of `url` for a local file path or file:// URL."
                 },
                 from: {
-                  description: "Connector start: element id, 1-based element index or element text."
+                  description: "Connector start: id on the target page (from convyy_analyze), element id in this call, 1-based index or element text."
                 },
                 to: {
-                  description: "Connector end: element id, 1-based element index or element text."
+                  description: "Connector end: same references as from; unknown ids fail with unknown_connector_endpoint. Objects must be on the target page."
                 },
                 label: {
                   type: "string",
@@ -316,6 +646,468 @@ var toolCatalog_default = {
         },
         required: [
           "prompt"
+        ],
+        additionalProperties: false
+      }
+    },
+    {
+      name: "convyy_edit",
+      title: "Edit Board Objects",
+      description: 'Change existing board objects by id from convyy_analyze: update fields, move, resize, delete, reorder, edit table cells/rows/columns and kanban columns/cards. All operations apply together or none. Locked objects cannot be changed. Use convyy_edit_doc for document text. Deletion detaches attached lines and preserves objects inside a deleted frame, just like user deletion. One user undo or convyy_revert restores the entire call; revert refuses if affected objects changed afterwards. Table order: delete rows/columns, addRows, addColumns, setCells; indices refer to the state at that step. Kanban order: addColumns, updateColumns, deleteCards, addCards, updateCards, moveCards, deleteColumns. Examples: {op:"table",id:"t",setCells:[{row:1,col:0,text:"Ada"}]}; {op:"kanban",id:"k",addCards:[{title:"Review",columnId:"todo"}]}.',
+      inputSchema: {
+        type: "object",
+        properties: {
+          boardId: {
+            type: "string",
+            description: "Board runtime id. Optional: the single open board is used when omitted."
+          },
+          boardHandle: {
+            type: "string",
+            description: "Opaque board handle. Optional. When several boards are open the call is not executed and the answer lists the handles to choose from; repeat the call with one of them."
+          },
+          sessionId: {
+            type: "string",
+            description: "Optional name of a sub-session inside this connection. It never grants access to another connection's session or batches."
+          },
+          prompt: {
+            type: "string",
+            description: "Short description of the edit. Required and non-blank."
+          },
+          pageId: {
+            type: "string",
+            description: "Target page; defaults to the open page. Objects must belong to this page."
+          },
+          operations: {
+            type: "array",
+            minItems: 1,
+            maxItems: 200,
+            description: "1..200 operations. Invalid operations return up to 20 errors with operation index and nested path and apply nothing. Multiple operations on a deleted id are duplicate_target.",
+            items: {
+              type: "object",
+              properties: {
+                setCells: {
+                  type: "array",
+                  minItems: 1,
+                  items: {
+                    type: "object",
+                    properties: {
+                      row: {
+                        type: "integer",
+                        minimum: 0
+                      },
+                      col: {
+                        type: "integer",
+                        minimum: 0
+                      },
+                      text: {
+                        type: "string",
+                        maxLength: 2e4
+                      }
+                    },
+                    required: [
+                      "row",
+                      "col",
+                      "text"
+                    ],
+                    additionalProperties: false
+                  }
+                },
+                addRows: {
+                  type: "object",
+                  properties: {
+                    at: {
+                      type: "integer",
+                      minimum: 0
+                    },
+                    rows: {
+                      type: "array",
+                      minItems: 1,
+                      items: {
+                        type: "array",
+                        minItems: 1,
+                        items: {
+                          type: "string",
+                          maxLength: 2e4
+                        }
+                      }
+                    }
+                  },
+                  required: [
+                    "rows"
+                  ],
+                  additionalProperties: false
+                },
+                addColumns: {
+                  description: "table: {at?, count, header?: string[]} (header fills row 0). kanban: [{id, title, at?}]. Omitted at appends; indices are zero-based.",
+                  properties: {
+                    at: {
+                      type: "integer",
+                      minimum: 0
+                    },
+                    count: {
+                      type: "integer",
+                      minimum: 1,
+                      maximum: 50
+                    },
+                    header: {
+                      type: "array",
+                      minItems: 1,
+                      items: {
+                        type: "string",
+                        maxLength: 2e4
+                      }
+                    }
+                  },
+                  required: [
+                    "count"
+                  ],
+                  additionalProperties: false,
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: {
+                        type: "string",
+                        minLength: 1
+                      },
+                      title: {
+                        type: "string",
+                        maxLength: 200
+                      },
+                      at: {
+                        type: "integer",
+                        minimum: 0
+                      }
+                    },
+                    required: [
+                      "id",
+                      "title"
+                    ],
+                    additionalProperties: false
+                  },
+                  minItems: 1
+                },
+                deleteRows: {
+                  type: "array",
+                  minItems: 1,
+                  items: {
+                    type: "integer",
+                    minimum: 0
+                  }
+                },
+                deleteColumns: {
+                  type: "array",
+                  minItems: 1,
+                  description: "table: zero-based column indices. kanban: column id strings; move or delete their cards first."
+                },
+                updateColumns: {
+                  type: "array",
+                  minItems: 1,
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: {
+                        type: "string",
+                        minLength: 1
+                      },
+                      title: {
+                        type: "string",
+                        maxLength: 200
+                      }
+                    },
+                    required: [
+                      "id",
+                      "title"
+                    ],
+                    additionalProperties: false
+                  }
+                },
+                addCards: {
+                  type: "array",
+                  minItems: 1,
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: {
+                        type: "string",
+                        minLength: 1
+                      },
+                      title: {
+                        type: "string",
+                        maxLength: 200
+                      },
+                      description: {
+                        type: "string",
+                        maxLength: 5e3
+                      },
+                      status: {
+                        type: "string",
+                        enum: [
+                          "no-status",
+                          "backlog",
+                          "todo",
+                          "in-progress",
+                          "done",
+                          "canceled"
+                        ]
+                      },
+                      color: {
+                        type: "string",
+                        enum: [
+                          "#0a0a0a",
+                          "#737373",
+                          "#e5e5e5",
+                          "#fbbf24",
+                          "#fb923c",
+                          "#4ade80",
+                          "#38bdf8",
+                          "#a78bfa",
+                          "#e879f9"
+                        ]
+                      },
+                      columnId: {
+                        type: "string",
+                        minLength: 1
+                      },
+                      swimlaneId: {
+                        type: "string",
+                        minLength: 1
+                      },
+                      at: {
+                        type: "integer",
+                        minimum: 0
+                      }
+                    },
+                    required: [
+                      "title",
+                      "columnId"
+                    ],
+                    additionalProperties: false
+                  }
+                },
+                updateCards: {
+                  type: "array",
+                  minItems: 1,
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: {
+                        type: "string",
+                        minLength: 1
+                      },
+                      title: {
+                        type: "string",
+                        maxLength: 200
+                      },
+                      description: {
+                        type: "string",
+                        maxLength: 5e3
+                      },
+                      status: {
+                        type: "string",
+                        enum: [
+                          "no-status",
+                          "backlog",
+                          "todo",
+                          "in-progress",
+                          "done",
+                          "canceled"
+                        ]
+                      },
+                      color: {
+                        type: "string",
+                        enum: [
+                          "#0a0a0a",
+                          "#737373",
+                          "#e5e5e5",
+                          "#fbbf24",
+                          "#fb923c",
+                          "#4ade80",
+                          "#38bdf8",
+                          "#a78bfa",
+                          "#e879f9"
+                        ]
+                      }
+                    },
+                    required: [
+                      "id"
+                    ],
+                    additionalProperties: false
+                  }
+                },
+                moveCards: {
+                  type: "array",
+                  minItems: 1,
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: {
+                        type: "string",
+                        minLength: 1
+                      },
+                      columnId: {
+                        type: "string",
+                        minLength: 1
+                      },
+                      swimlaneId: {
+                        type: "string",
+                        minLength: 1
+                      },
+                      at: {
+                        type: "integer",
+                        minimum: 0
+                      }
+                    },
+                    required: [
+                      "id",
+                      "columnId"
+                    ],
+                    additionalProperties: false
+                  }
+                },
+                deleteCards: {
+                  type: "array",
+                  minItems: 1,
+                  items: {
+                    type: "string",
+                    minLength: 1
+                  }
+                },
+                op: {
+                  type: "string",
+                  enum: [
+                    "update",
+                    "move",
+                    "resize",
+                    "delete",
+                    "front",
+                    "back",
+                    "table",
+                    "kanban"
+                  ]
+                },
+                id: {
+                  type: "string",
+                  minLength: 1
+                },
+                text: {
+                  type: "string",
+                  description: "Sticky, shape or text content; use convyy_edit_doc for textDoc Markdown."
+                },
+                title: {
+                  type: "string",
+                  description: "Frame title."
+                },
+                color: {
+                  type: "string",
+                  description: "Sticky background token; shape/text text color; line/brush stroke color. Exact existing palette tokens only, no aliases."
+                },
+                fill: {
+                  type: "string",
+                  enum: [
+                    "transparent",
+                    "white",
+                    "amber",
+                    "orange",
+                    "green",
+                    "sky",
+                    "violet",
+                    "fuchsia"
+                  ],
+                  description: "Shape or frame fill token. Unsupported for sticky."
+                },
+                fontSize: {
+                  type: "number",
+                  minimum: 8,
+                  maximum: 256
+                },
+                bold: {
+                  type: "boolean"
+                },
+                link: {
+                  description: "Safe http(s)/mailto URL string, or null to remove the link."
+                },
+                x: {
+                  type: "number",
+                  description: "Absolute board x. For line/brush, bounding box left."
+                },
+                y: {
+                  type: "number",
+                  description: "Absolute board y. For line/brush, bounding box top."
+                },
+                width: {
+                  type: "number",
+                  description: "Positive requested width; UI minimum/aspect rules apply."
+                },
+                height: {
+                  type: "number",
+                  description: "Positive requested height. Sticky is square; textDoc uses width and recalculates height."
+                }
+              },
+              required: [
+                "op",
+                "id"
+              ],
+              additionalProperties: false
+            }
+          }
+        },
+        required: [
+          "prompt",
+          "operations"
+        ],
+        additionalProperties: false
+      }
+    },
+    {
+      name: "convyy_edit_doc",
+      title: "Edit Document",
+      description: "Edit any unlocked textDoc by its persisted docId. Use append to add Markdown, replace_all to replace all text (empty is allowed), or replace_text for one exact unique substring from convyy_analyze details/full. Matching is literal and case-sensitive; missing or repeated find text is an error. Locked documents and documents currently open in the user\u2019s editor cannot be edited. Text is limited to 100000 characters; height can grow, width and position stay fixed. One user undo restores text and height; convyy_revert can undo this session\u2019s last edit while its text is unchanged.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          boardId: {
+            type: "string",
+            description: "Board runtime id. Optional: the single open board is used when omitted."
+          },
+          boardHandle: {
+            type: "string",
+            description: "Opaque board handle. Optional. When several boards are open the call is not executed and the answer lists the handles to choose from; repeat the call with one of them."
+          },
+          sessionId: {
+            type: "string",
+            description: "Optional name of a sub-session inside this connection. It never grants access to another connection's session or batches."
+          },
+          prompt: {
+            type: "string",
+            description: "Short description of the edit. Required and non-blank."
+          },
+          docId: {
+            type: "string",
+            minLength: 1,
+            maxLength: 2e4
+          },
+          operation: {
+            type: "string",
+            enum: [
+              "append",
+              "replace_all",
+              "replace_text"
+            ]
+          },
+          markdown: {
+            type: "string",
+            description: "Markdown to append, replace all text with, or substitute. Maximum 100000 characters; oversize fails as doc_too_long, never truncated."
+          },
+          find: {
+            type: "string",
+            description: "Only for replace_text: nonempty exact unique substring from the current Markdown. No regex."
+          }
+        },
+        required: [
+          "prompt",
+          "docId",
+          "operation",
+          "markdown"
         ],
         additionalProperties: false
       }
@@ -363,7 +1155,7 @@ var toolCatalog_default = {
           },
           structure: {
             type: "object",
-            description: "Grid templates: { title?, lanes:[{id,label,color?}], stages:[{id,title,cells:{laneId:text}}] }. Kanban: { columns:[{id,title,order}], cards:[{id,title,columnId,status,order}] }. Board templates: sections/items to expand the seed layout.",
+            description: "Grid templates: { title?, lanes:[{id,label,color?}], stages:[{id,title,cells:{laneId:text}}] }. Kanban: { title?, columns:[{id,title}], swimlanes?:[{id,title}], cards:[{id?,title,description?,columnId,swimlaneId?,status?,color?}], width? }. Same native builder, limits and palette as draw kind kanban; array order is display order; unknown status/color/reference fails with invalid_kanban. Board templates: sections/items to expand the seed layout.",
             additionalProperties: true
           },
           overrides: {
@@ -445,7 +1237,7 @@ var toolCatalog_default = {
     {
       name: "convyy_analyze",
       title: "Analyze Canvas",
-      description: "Read the canvas and return raw context for synthesis, not a final answer. Do not echo the inventory back to the user. Produce a conclusion that fits the user's request and the content: common theme, clusters or relationships, key insights, contradictions or gaps, and a recommendation or next steps. If the request does not specify the analysis format, default to: theme (1-2 sentences), 3-5 insights, and one recommendation. WHAT is read (`target`): selection (the current selection; a selected frame brings the objects it owns), page (one page: `pageId`, else the current one), pages (the pages in `pageIds`), board (every page). Without a target the current selection is read, or the page when nothing is selected; an explicit selection with nothing selected answers `empty_selection`. HOW it comes back (`representation`): structure (text only), snapshot (structure plus a rendered picture), images (structure plus the source images), full (all three). Reading never changes the open page or where your next draw lands. The older `scope` (page | selection | image) still works but cannot be combined with target/representation/pageIds. Long boards come in parts: the answer carries `completeness` (what is missing and why) and, when more remains, a `cursor` to pass back alone (optionally with `maxObjects`); if the board changed meanwhile the call fails with `stale_context` and must be repeated without the cursor. Texts and table cells are shortened in the overview (`textTruncated`); pass `objectIds` to read those objects in full. Respond in the user's language. Read-only: never modifies the board.",
+      description: "Read the canvas and return raw context for synthesis, not a final answer. Do not echo the inventory back to the user. Produce a conclusion that fits the user's request and the content: common theme, clusters or relationships, key insights, contradictions or gaps, and a recommendation or next steps. If the request does not specify the analysis format, default to: theme (1-2 sentences), 3-5 insights, and one recommendation. WHAT is read (`target`): selection (the current selection; a selected frame brings the objects it owns), page (one page: `pageId`, else the current one), pages (the pages in `pageIds`), board (every page). Without a target the current selection is read, or the page when nothing is selected; an explicit selection with nothing selected answers `empty_selection`. HOW it comes back (`representation`): structure (text only), snapshot (structure plus a rendered picture), images (structure plus the source images), full (all three). Reading never changes the open page or where your next draw lands. The older `scope` (page | selection | image) still works but cannot be combined with target/representation/pageIds. Long boards come in parts: the answer carries `completeness` (what is missing and why) and, when more remains, a `cursor` to pass back alone (optionally with `maxObjects`); if the board changed meanwhile the call fails with `stale_context` and must be repeated without the cursor. Texts and table cells are shortened in the overview (`textTruncated`); pass `objectIds` to read those objects in full. textDoc frames include `markdown` and current `position`/`size`; their Markdown is complete with `objectIds` or representation `full`, otherwise a raw prefix with `textTruncated`/`textLength`. Respond in the user's language. Read-only: never modifies the board.",
       inputSchema: {
         type: "object",
         properties: {
@@ -528,7 +1320,7 @@ var toolCatalog_default = {
     {
       name: "convyy_revert",
       title: "Revert Last Batch",
-      description: "Revert the last AI batch of the active runtime session.",
+      description: "Revert the newest AI batch, object edit or document text edit of this runtime session, if it is still safe to undo.",
       inputSchema: {
         type: "object",
         properties: {
@@ -1591,14 +2383,14 @@ function requestHop(url, address, deadlineAt, policy) {
       (response) => {
         const status = response.statusCode ?? 0;
         if (REDIRECT_STATUSES.has(status)) {
-          response.resume();
           const location = response.headers.location ?? null;
+          response.destroy();
           clearTimeout(timer);
           resolve2({ status, location: typeof location === "string" ? location : null, bytes: null });
           return;
         }
         if (status !== 200) {
-          response.resume();
+          response.destroy();
           clearTimeout(timer);
           reject(new AssetError("http_error", `the server answered ${status}`));
           return;

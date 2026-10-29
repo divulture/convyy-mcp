@@ -9,6 +9,7 @@ draw on it, read it and analyze it.
 | Tool | What it does |
 |---|---|
 | `convyy_draw` | Adds sticky notes, shapes, text, lines and frames; the board does the layout |
+| `convyy_edit_doc` | Appends or replaces Markdown in an unlocked Document |
 | `convyy_apply_template` | Inserts a ready-made template: SWOT, retro, kanban, brainstorming and more |
 | `convyy_pages` | Lists, creates and switches pages |
 | `convyy_analyze` | Reads the selection, a page or the whole board |
