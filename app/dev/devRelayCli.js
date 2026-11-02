@@ -1392,6 +1392,8 @@ var RELAY_ROUTING_CODES = {
 var CONVYY_RELAY_ALLOWED_ORIGIN_SUFFIXES = [
   "http://localhost",
   "http://127.0.0.1",
+  "https://app.convyy.ru",
+  // Old board address; convyy.ru became the landing, kept for users with an old tab open.
   "https://convyy.ru",
   "https://www.convyy.ru",
   // Test deployments on Vercel.
@@ -1469,7 +1471,7 @@ function isAllowedRelayHost(hostHeader) {
     return false;
   }
 }
-var CONVYY_RELAY_REVISION = 3;
+var CONVYY_RELAY_REVISION = 4;
 var CONVYY_RELAY_VERSION = "0.1.0";
 var CONVYY_RELAY_DEFAULT_IDLE_EXIT_MS = 10 * 60 * 1e3;
 var CONVYY_RELAY_HEARTBEAT_INTERVAL_MS = 60 * 1e3;
