@@ -100,7 +100,7 @@ var toolCatalog_default = {
     {
       name: "convyy_draw",
       title: "Draw On Board",
-      description: "Render any board content you compose from native primitives. Provide `elements` (shape, sticky, frame, textDoc, text, image, table, kanban, bpmn, emoji, line, embed, connector); the server owns ids and styling, but YOU own the layout of primitives \u2014 give explicit x/y/width/height so nothing overlaps. LAYOUT RULES: (1) Stickies are ALWAYS square; the side equals the `width` you send, otherwise `height`, otherwise 152, so reserve a square footprint and leave >=40px gaps between boxes. (2) Lay diagrams out on a clean grid (left-to-right or top-to-bottom) and connect adjacent boxes; do NOT place any shape on the straight line between two boxes you connect, or the arrow will cross it. (3) For a branch/decision, offset the branch target to the side or below with clear space so its connector has an empty corridor \u2014 the server routes arrows from the nearest edges with elbow bends, which only stays clean when you leave room. Use this for anything that does not fit a named template. For a textDoc provide Markdown (at most 100000 characters) and optional x/y/width; default width 480, minimum 240. Height is calculated with the export text layout, without waiting for the editor. The result's createdTextDocs lists persisted ids and x/y/width/height in board units after placement. Later auto-growth may increase height; convyy_analyze reports the current size. Use convyy_edit_doc to edit an existing unlocked document. Default sizes in board units: sticky 152\xD7152, shape 220\xD7120, frame 600\xD7400, text 320\xD748, image 320\xD7240, emoji 96\xD796, embed 560\xD7315, textDoc width 480 with calculated height. Elements with explicit x and y are never moved and overlaps between them are reported as warnings; grid/flow-lr place elements with missing coordinates (flow-lr currently uses the same grid). Use kind bpmn for business processes (BPMN); the server lays it out left-to-right by lanes \u2014 do not position BPMN shapes manually. BPMN expands into ordinary editable shapes, frames, arrow connectors and text labels; no pools, message flows, data objects or subprocesses. Use kind kanban for task boards; do not imitate kanban with frames and stickies. Use table for any grid of text (comparisons, RACI, schedules); use shapes only for diagrams. THINKING SIGNAL: when you START handling the user's request, call this once with empty `elements: []` so the board shows your cursor 'thinking'; then call it again with the real `elements` once you have composed the answer.",
+      description: "Render any board content you compose from native primitives. Provide `elements` (shape, sticky, frame, textDoc, text, image, table, kanban, bpmn, flowchart, emoji, line, embed, connector); the server owns ids and styling, but YOU own the layout of primitives \u2014 give explicit x/y/width/height so nothing overlaps. LAYOUT RULES: (1) Stickies are ALWAYS square; the side equals the `width` you send, otherwise `height`, otherwise 152, so reserve a square footprint and leave >=40px gaps between boxes. (2) Lay diagrams out on a clean grid (left-to-right or top-to-bottom) and connect adjacent boxes; do NOT place any shape on the straight line between two boxes you connect, or the arrow will cross it. (3) For a branch/decision, offset the branch target to the side or below with clear space so its connector has an empty corridor \u2014 the server routes arrows from the nearest edges with elbow bends, which only stays clean when you leave room. Use this for anything that does not fit a named template. For a textDoc provide Markdown (at most 100000 characters) and optional x/y/width; default width 480, minimum 240. Height is calculated with the export text layout, without waiting for the editor. The result's createdTextDocs lists persisted ids and x/y/width/height in board units after placement. Later auto-growth may increase height; convyy_analyze reports the current size. Use convyy_edit_doc to edit an existing unlocked document. Default sizes in board units: sticky 152\xD7152, shape 220\xD7120, frame 600\xD7400, text 320\xD748, image 320\xD7240, emoji 96\xD796, embed 560\xD7315, textDoc width 480 with calculated height. Elements with explicit x and y are never moved and overlaps between them are reported as warnings; grid/flow-lr place elements with missing coordinates (flow-lr currently uses the same grid). Use kind flowchart for any flowchart, algorithm, user flow, decision tree or system diagram; give nodes and edges only \u2014 the server lays it out, do not position flowchart shapes manually. Use kind mindmap for brainstorming, idea maps and topic overviews; kind tree for hierarchies (org charts, site maps, task breakdowns); give the nested structure only \u2014 the server lays it out. A flowchart is a process with steps and conditions; a mindmap/tree has no flow, only parent-child nesting. Use bpmn only for business processes with lanes; the server lays it out left-to-right by lanes \u2014 do not position BPMN shapes manually. BPMN expands into ordinary editable shapes, frames, arrow connectors and text labels; no pools, message flows, data objects or subprocesses. Use kind kanban for task boards; do not imitate kanban with frames and stickies. Use table for any grid of text (comparisons, RACI, schedules); use shapes only for diagrams. THINKING SIGNAL: when you START handling the user's request, call this once with empty `elements: []` so the board shows your cursor 'thinking'; then call it again with the real `elements` once you have composed the answer.",
       inputSchema: {
         type: "object",
         properties: {
@@ -119,7 +119,7 @@ var toolCatalog_default = {
           },
           elements: {
             type: "array",
-            description: "Elements you generate from the request. Each is one of: { kind:'shape', id, text, shapeType, x?,y?,width?,height?, fill? } \u2014 shapeType is one of: rectangle | rounded-rectangle | ellipse | diamond | parallelogram | star | triangle | hexagon | process | decision | terminator | data | document | database | manual-operation | preparation | internal-storage | predefined-process | stored-data | display | delay | merge | off-page-connector | direct-access-storage | comment | note | circle-plus | circle-x (default process); fill is one of: transparent | white | amber | orange | green | sky | violet | fuchsia. | { kind:'sticky', id, text, color?, x?,y?,width? } \u2014 color is one of: amber | orange | green | sky | violet | fuchsia (default amber). Use these tokens, NOT plain color names like yellow/blue/green/red. | { kind:'frame', id, title, x?,y?,width?,height? } | { kind:'textDoc', id?, markdown, x?,y?,width? } \u2014 formatted text document, height calculated by the server. | { kind:'kanban', id, title, columns:[{id,title}], swimlanes?:[{id,title}], cards:[{id?,title,description?,columnId,swimlaneId?,status?,color?}], x?, y?, width? } \u2014 content-sized task board. | { kind:'bpmn', id?, title?, lanes?:[{id,title}], nodes:[{id,type,text?,laneId?}], flows:[{from,to,label?}], x?,y? } \u2014 business process laid out left-to-right by lanes; shapes remain ordinary editable objects. Node type: start | end | intermediate | task | gateway-xor | gateway-and | gateway-or. Limits: 10 lanes, 150 nodes, 300 flows, title/text 200 characters, label 100. | { kind:'table', id, rows: string[][], header?, columnWidths?, merges?: [{ row, col, rowSpan?, colSpan? }], x?, y? } \u2014 width/height ignored; size computed from rows and columns. | { kind:'text', id, text, x?,y?,width?,height?, fontSize?, bold? } | { kind:'image', id, x?,y?,width?,height? } \u2014 place a picture. Provide exactly one source: `data` (base64 or data URL, PNG/JPEG/WebP), `dataChunks` (base64 split into strings), `url` (`imageUrl`, `src`, `path`, `filePath`, `localPath` are aliases) or `assetId` (an existing asset, e.g. from convyy_analyze). Give width/height matching the image aspect ratio, or omit BOTH to auto-size from the decoded image. | { kind:'emoji', id, emoji:'\u{1F525}', size?:96, x?, y? } | { kind:'line', id, points:[{x:0,y:0},{x:200,y:100}], arrow:'both', dashed?:true } \u2014 absolute coordinates, no layout shift. | { kind:'embed', id, url:'https://www.youtube.com/watch?v=dQw4w9WgXcQ', x?, y?, width?, height? } \u2014 iframe, default 560\xD7315; unsafe_url or embed_host_not_allowed on unsafe/unsupported URLs. | { kind:'connector', from, to, label?, arrow? } \u2014 endpoints may reference ids already on the target page. Optional link:'https://example.com' on sticky, shape, text, table and emoji. Unsupported kind/shapeType fails with unsupported_kind. Omit coordinates to let the server lay boxes out.",
+            description: "Elements you generate from the request. Each is one of: { kind:'shape', id, text, shapeType, x?,y?,width?,height?, fill? } \u2014 shapeType is one of: rectangle | rounded-rectangle | ellipse | diamond | parallelogram | star | triangle | hexagon | process | decision | terminator | data | document | database | manual-operation | preparation | internal-storage | predefined-process | stored-data | display | delay | merge | off-page-connector | direct-access-storage | comment | note | circle-plus | circle-x (default process); fill is one of: transparent | white | amber | orange | green | sky | violet | fuchsia. | { kind:'sticky', id, text, color?, x?,y?,width? } \u2014 color is one of: amber | orange | green | sky | violet | fuchsia (default amber). Use these tokens, NOT plain color names like yellow/blue/green/red. | { kind:'frame', id, title, x?,y?,width?,height? } | { kind:'textDoc', id?, markdown, x?,y?,width? } \u2014 formatted text document, height calculated by the server. | { kind:'kanban', id, title, columns:[{id,title}], swimlanes?:[{id,title}], cards:[{id?,title,description?,columnId,swimlaneId?,status?,color?}], x?, y?, width? } \u2014 content-sized task board. | { kind:'bpmn', id?, title?, lanes?:[{id,title}], nodes:[{id,type,text?,laneId?}], flows:[{from,to,label?}], x?,y? } \u2014 business process laid out left-to-right by lanes; shapes remain ordinary editable objects. Node type: start | end | intermediate | task | gateway-xor | gateway-and | gateway-or. Limits: 10 lanes, 150 nodes, 300 flows, title/text 200 characters, label 100. | { kind:'flowchart', id?, title?, direction?:'TD'|'LR', nodes:[{id,text,type?}], edges:[{from,to,label?,dashed?}], groups?:[{id,title,nodeIds}], x?,y? } \u2014 flowchart laid out by the server (layered, default TD); shapes, arrow connectors and labels remain ordinary editable objects. Node type: process | decision | terminator | data | document | database | subprocess | note (default process). Limits: 150 nodes, 300 edges, 20 groups, title/text 200 characters, label 100. Example: { kind:'flowchart', nodes:[{id:'s',text:'Start',type:'terminator'},{id:'q',text:'Paid?',type:'decision'},{id:'ship',text:'Ship order'},{id:'e',text:'End',type:'terminator'}], edges:[{from:'s',to:'q'},{from:'q',to:'ship',label:'yes'},{from:'q',to:'s',label:'no',dashed:true},{from:'ship',to:'e'}] } | { kind:'mindmap', id?, root:{ text, children?:[{ text, children? }] }, side?:'both'|'right', x?,y? } \u2014 mindmap laid out by the server around a central ellipse, branches split left/right by default; each first-level branch gets its own board color, inherited by its descendants; links are attached connectors without arrows. | { kind:'tree', id?, title?, root:{ text, children?:[...] }, direction?:'TD'|'LR', x?,y? } \u2014 monochrome hierarchy (default TD) with connectors without arrows. Limits for both: 200 nodes, 8 levels including the root, text 200 characters. Example: { kind:'mindmap', root:{ text:'Launch', children:[{ text:'Marketing', children:[{text:'Ads'},{text:'PR'}] },{ text:'Product' }] } } | { kind:'table', id, rows: string[][], header?, columnWidths?, merges?: [{ row, col, rowSpan?, colSpan? }], x?, y? } \u2014 width/height ignored; size computed from rows and columns. | { kind:'text', id, text, x?,y?,width?,height?, fontSize?, bold? } | { kind:'image', id, x?,y?,width?,height? } \u2014 place a picture. Provide exactly one source: `data` (base64 or data URL, PNG/JPEG/WebP), `dataChunks` (base64 split into strings), `url` (`imageUrl`, `src`, `path`, `filePath`, `localPath` are aliases) or `assetId` (an existing asset, e.g. from convyy_analyze). Give width/height matching the image aspect ratio, or omit BOTH to auto-size from the decoded image. | { kind:'emoji', id, emoji:'\u{1F525}', size?:96, x?, y? } | { kind:'line', id, points:[{x:0,y:0},{x:200,y:100}], arrow:'both', dashed?:true } \u2014 absolute coordinates, no layout shift. | { kind:'embed', id, url:'https://www.youtube.com/watch?v=dQw4w9WgXcQ', x?, y?, width?, height? } \u2014 iframe, default 560\xD7315; unsafe_url or embed_host_not_allowed on unsafe/unsupported URLs. | { kind:'connector', from, to, label?, arrow? } \u2014 endpoints may reference ids already on the target page. Optional link:'https://example.com' on sticky, shape, text, table and emoji. Unsupported kind/shapeType fails with unsupported_kind. Omit coordinates to let the server lay boxes out.",
             items: {
               type: "object",
               description: "One board element. Fields that do not apply to the element kind are ignored.",
@@ -160,6 +160,9 @@ var toolCatalog_default = {
                     "table",
                     "kanban",
                     "bpmn",
+                    "flowchart",
+                    "mindmap",
+                    "tree",
                     "emoji",
                     "line",
                     "embed",
@@ -229,7 +232,46 @@ var toolCatalog_default = {
                 },
                 title: {
                   type: "string",
-                  description: "Title of a frame, kanban or BPMN process (kanban/BPMN limit 200 characters)."
+                  description: "Title of a frame, kanban, BPMN process, flowchart or tree (kanban/BPMN/flowchart/tree limit 200 characters)."
+                },
+                direction: {
+                  type: "string",
+                  enum: [
+                    "TD",
+                    "LR"
+                  ],
+                  description: "Flowchart or tree direction: TD top-down (default) or LR left-to-right."
+                },
+                side: {
+                  type: "string",
+                  enum: [
+                    "both",
+                    "right"
+                  ],
+                  description: "Mindmap branches on both sides of the centre (default) or all to the right."
+                },
+                root: {
+                  type: "object",
+                  required: [
+                    "text"
+                  ],
+                  properties: {
+                    text: {
+                      type: "string",
+                      maxLength: 200
+                    },
+                    id: {
+                      type: "string"
+                    },
+                    children: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        description: "Nested node: { text, children?, id? }."
+                      }
+                    }
+                  },
+                  description: "Required for mindmap and tree: the centre/root node { text, children?:[{ text, children?, id? }] }, nested at most 8 levels including the root. Empty text, unknown node fields, wrong types or deeper nesting fail with invalid_mindmap / invalid_tree; more than 200 nodes or text over 200 characters fail with mindmap_too_large / tree_too_large, never truncated."
                 },
                 lanes: {
                   type: "array",
@@ -273,7 +315,15 @@ var toolCatalog_default = {
                           "task",
                           "gateway-xor",
                           "gateway-and",
-                          "gateway-or"
+                          "gateway-or",
+                          "process",
+                          "decision",
+                          "terminator",
+                          "data",
+                          "document",
+                          "database",
+                          "subprocess",
+                          "note"
                         ]
                       },
                       text: {
@@ -285,12 +335,11 @@ var toolCatalog_default = {
                       }
                     },
                     required: [
-                      "id",
-                      "type"
+                      "id"
                     ],
                     additionalProperties: false
                   },
-                  description: "Required for bpmn. Native editable shapes, laid out by the server. Unknown types/references, duplicate ids and invalid flows fail with invalid_bpmn. Exceeded counts/text limits fail with bpmn_too_large, never truncated."
+                  description: "Required for bpmn and flowchart. Native editable shapes, laid out by the server. BPMN nodes require a BPMN type; flowchart type defaults to process. Unknown types/references, duplicate ids and invalid flows/edges fail with invalid_bpmn / invalid_flowchart. Exceeded counts/text limits fail with bpmn_too_large / flowchart_too_large, never truncated."
                 },
                 flows: {
                   type: "array",
@@ -316,6 +365,62 @@ var toolCatalog_default = {
                     additionalProperties: false
                   },
                   description: "Required for bpmn. Endpoints reference nodes in this element only. No self flows, incoming flows to start or outgoing flows from end. Cycles are supported. Conditions become ordinary editable text beside arrow connectors."
+                },
+                edges: {
+                  type: "array",
+                  maxItems: 300,
+                  items: {
+                    type: "object",
+                    properties: {
+                      from: {
+                        type: "string"
+                      },
+                      to: {
+                        type: "string"
+                      },
+                      label: {
+                        type: "string",
+                        maxLength: 100
+                      },
+                      dashed: {
+                        type: "boolean"
+                      }
+                    },
+                    required: [
+                      "from",
+                      "to"
+                    ],
+                    additionalProperties: false
+                  },
+                  description: "Required for flowchart. Endpoints reference node ids of this flowchart only; no self edges; cycles are supported. Each edge becomes an attached arrow connector, label becomes editable text beside it."
+                },
+                groups: {
+                  type: "array",
+                  maxItems: 20,
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: {
+                        type: "string"
+                      },
+                      title: {
+                        type: "string",
+                        maxLength: 200
+                      },
+                      nodeIds: {
+                        type: "array",
+                        items: {
+                          type: "string"
+                        }
+                      }
+                    },
+                    required: [
+                      "id",
+                      "nodeIds"
+                    ],
+                    additionalProperties: false
+                  },
+                  description: "Optional flowchart frames around sets of nodes (stage/subsystem). A node belongs to at most one group."
                 },
                 rows: {
                   type: "array",
@@ -488,11 +593,11 @@ var toolCatalog_default = {
                 },
                 width: {
                   type: "number",
-                  description: "Width. Lower bound for kanban (content determines minimum). Ignored for tables and BPMN (computed from content). For stickies this is the side of the square."
+                  description: "Width. Lower bound for kanban (content determines minimum). Ignored for tables, BPMN, flowcharts, mindmaps and trees (computed from content). For stickies this is the side of the square."
                 },
                 height: {
                   type: "number",
-                  description: "Height. Ignored for kanban (computed from content), tables (computed from rows), BPMN (computed from lanes/graph) and textDoc (computed from Markdown). Sticky square side when width is omitted; otherwise width takes precedence."
+                  description: "Height. Ignored for kanban (computed from content), tables (computed from rows), BPMN/flowchart/mindmap/tree (computed from the graph) and textDoc (computed from Markdown). Sticky square side when width is omitted; otherwise width takes precedence."
                 },
                 color: {
                   type: "string",
