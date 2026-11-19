@@ -100,7 +100,7 @@ var toolCatalog_default = {
     {
       name: "convyy_draw",
       title: "Draw On Board",
-      description: "Render any board content you compose from native primitives. Provide `elements` (shape, sticky, frame, textDoc, text, image, table, kanban, bpmn, flowchart, emoji, line, embed, connector); the server owns ids and styling, but YOU own the layout of primitives \u2014 give explicit x/y/width/height so nothing overlaps. LAYOUT RULES: (1) Stickies are ALWAYS square; the side equals the `width` you send, otherwise `height`, otherwise 152, so reserve a square footprint and leave >=40px gaps between boxes. (2) Lay diagrams out on a clean grid (left-to-right or top-to-bottom) and connect adjacent boxes; do NOT place any shape on the straight line between two boxes you connect, or the arrow will cross it. (3) For a branch/decision, offset the branch target to the side or below with clear space so its connector has an empty corridor \u2014 the server routes arrows from the nearest edges with elbow bends, which only stays clean when you leave room. Use this for anything that does not fit a named template. For a textDoc provide Markdown (at most 100000 characters) and optional x/y/width; default width 480, minimum 240. Height is calculated with the export text layout, without waiting for the editor. The result's createdTextDocs lists persisted ids and x/y/width/height in board units after placement. Later auto-growth may increase height; convyy_analyze reports the current size. Use convyy_edit_doc to edit an existing unlocked document. Default sizes in board units: sticky 152\xD7152, shape 220\xD7120, frame 600\xD7400, text 320\xD748, image 320\xD7240, emoji 96\xD796, embed 560\xD7315, textDoc width 480 with calculated height. Elements with explicit x and y are never moved and overlaps between them are reported as warnings; grid/flow-lr place elements with missing coordinates (flow-lr currently uses the same grid). Use kind flowchart for any flowchart, algorithm, user flow, decision tree or system diagram; give nodes and edges only \u2014 the server lays it out, do not position flowchart shapes manually. Use kind mindmap for brainstorming, idea maps and topic overviews; kind tree for hierarchies (org charts, site maps, task breakdowns); give the nested structure only \u2014 the server lays it out. A flowchart is a process with steps and conditions; a mindmap/tree has no flow, only parent-child nesting. Use bpmn only for business processes with lanes; the server lays it out left-to-right by lanes \u2014 do not position BPMN shapes manually. BPMN expands into ordinary editable shapes, frames, arrow connectors and text labels; no pools, message flows, data objects or subprocesses. Use kind kanban for task boards; do not imitate kanban with frames and stickies. Use table for any grid of text (comparisons, RACI, schedules); use shapes only for diagrams. THINKING SIGNAL: when you START handling the user's request, call this once with empty `elements: []` so the board shows your cursor 'thinking'; then call it again with the real `elements` once you have composed the answer.",
+      description: "Render any board content you compose from native primitives. Provide `elements` (shape, sticky, frame, textDoc, text, image, table, kanban, bpmn, flowchart, mindmap, tree, chart, emoji, line, embed, connector); the server owns ids and styling, but YOU own the layout of primitives \u2014 give explicit x/y/width/height so nothing overlaps. LAYOUT RULES: (1) Stickies are ALWAYS square; the side equals the `width` you send, otherwise `height`, otherwise 152, so reserve a square footprint and leave >=40px gaps between boxes. (2) Lay diagrams out on a clean grid (left-to-right or top-to-bottom) and connect adjacent boxes; do NOT place any shape on the straight line between two boxes you connect, or the arrow will cross it. (3) For a branch/decision, offset the branch target to the side or below with clear space so its connector has an empty corridor \u2014 the server routes arrows from the nearest edges with elbow bends, which only stays clean when you leave room. Use this for anything that does not fit a named template. For a textDoc provide Markdown (at most 100000 characters) and optional x/y/width; default width 480, minimum 240. Height is calculated with the export text layout, without waiting for the editor. The result's createdTextDocs lists persisted ids and x/y/width/height in board units after placement. Later auto-growth may increase height; convyy_analyze reports the current size. Use convyy_edit_doc to edit an existing unlocked document. Default sizes in board units: sticky 152\xD7152, shape 220\xD7120, frame 600\xD7400, text 320\xD748, image 320\xD7240, emoji 96\xD796, embed 560\xD7315, textDoc width 480 with calculated height. Elements with explicit x and y are never moved and overlaps between them are reported as warnings; grid/flow-lr place elements with missing coordinates (flow-lr currently uses the same grid). Use kind flowchart for any flowchart, algorithm, user flow, decision tree or system diagram; give nodes and edges only \u2014 the server lays it out, do not position flowchart shapes manually. Use kind mindmap for brainstorming, idea maps and topic overviews; kind tree for hierarchies (org charts, site maps, task breakdowns); give the nested structure only \u2014 the server lays it out. A flowchart is a process with steps and conditions; a mindmap/tree has no flow, only parent-child nesting. Use bpmn only for business processes with lanes; the server lays it out left-to-right by lanes \u2014 do not position BPMN shapes manually. BPMN expands into ordinary editable shapes, frames, arrow connectors and text labels; no pools, message flows, data objects or subprocesses. Use kind kanban for task boards; do not imitate kanban with frames and stickies. Use table for any grid of text (comparisons, RACI, schedules); use shapes only for diagrams. Use kind chart for any chart or graph of numbers (bar, line, pie/donut, scatter, funnel); give categories and series only \u2014 the server draws axes, grid, labels and legend as ordinary grouped shapes, lines and text; never imitate a chart with stickies, shapes or lines yourself; to chart a table already on the board pass its id as fromTableId instead of retyping the numbers. THINKING SIGNAL: when you START handling the user's request, call this once with empty `elements: []` so the board shows your cursor 'thinking'; then call it again with the real `elements` once you have composed the answer.",
       inputSchema: {
         type: "object",
         properties: {
@@ -119,7 +119,7 @@ var toolCatalog_default = {
           },
           elements: {
             type: "array",
-            description: "Elements you generate from the request. Each is one of: { kind:'shape', id, text, shapeType, x?,y?,width?,height?, fill? } \u2014 shapeType is one of: rectangle | rounded-rectangle | ellipse | diamond | parallelogram | star | triangle | hexagon | process | decision | terminator | data | document | database | manual-operation | preparation | internal-storage | predefined-process | stored-data | display | delay | merge | off-page-connector | direct-access-storage | comment | note | circle-plus | circle-x (default process); fill is one of: transparent | white | amber | orange | green | sky | violet | fuchsia. | { kind:'sticky', id, text, color?, x?,y?,width? } \u2014 color is one of: amber | orange | green | sky | violet | fuchsia (default amber). Use these tokens, NOT plain color names like yellow/blue/green/red. | { kind:'frame', id, title, x?,y?,width?,height? } | { kind:'textDoc', id?, markdown, x?,y?,width? } \u2014 formatted text document, height calculated by the server. | { kind:'kanban', id, title, columns:[{id,title}], swimlanes?:[{id,title}], cards:[{id?,title,description?,columnId,swimlaneId?,status?,color?}], x?, y?, width? } \u2014 content-sized task board. | { kind:'bpmn', id?, title?, lanes?:[{id,title}], nodes:[{id,type,text?,laneId?}], flows:[{from,to,label?}], x?,y? } \u2014 business process laid out left-to-right by lanes; shapes remain ordinary editable objects. Node type: start | end | intermediate | task | gateway-xor | gateway-and | gateway-or. Limits: 10 lanes, 150 nodes, 300 flows, title/text 200 characters, label 100. | { kind:'flowchart', id?, title?, direction?:'TD'|'LR', nodes:[{id,text,type?}], edges:[{from,to,label?,dashed?}], groups?:[{id,title,nodeIds}], x?,y? } \u2014 flowchart laid out by the server (layered, default TD); shapes, arrow connectors and labels remain ordinary editable objects. Node type: process | decision | terminator | data | document | database | subprocess | note (default process). Limits: 150 nodes, 300 edges, 20 groups, title/text 200 characters, label 100. Example: { kind:'flowchart', nodes:[{id:'s',text:'Start',type:'terminator'},{id:'q',text:'Paid?',type:'decision'},{id:'ship',text:'Ship order'},{id:'e',text:'End',type:'terminator'}], edges:[{from:'s',to:'q'},{from:'q',to:'ship',label:'yes'},{from:'q',to:'s',label:'no',dashed:true},{from:'ship',to:'e'}] } | { kind:'mindmap', id?, root:{ text, children?:[{ text, children? }] }, side?:'both'|'right', x?,y? } \u2014 mindmap laid out by the server around a central ellipse, branches split left/right by default; each first-level branch gets its own board color, inherited by its descendants; links are attached connectors without arrows. | { kind:'tree', id?, title?, root:{ text, children?:[...] }, direction?:'TD'|'LR', x?,y? } \u2014 monochrome hierarchy (default TD) with connectors without arrows. Limits for both: 200 nodes, 8 levels including the root, text 200 characters. Example: { kind:'mindmap', root:{ text:'Launch', children:[{ text:'Marketing', children:[{text:'Ads'},{text:'PR'}] },{ text:'Product' }] } } | { kind:'table', id, rows: string[][], header?, columnWidths?, merges?: [{ row, col, rowSpan?, colSpan? }], x?, y? } \u2014 width/height ignored; size computed from rows and columns. | { kind:'text', id, text, x?,y?,width?,height?, fontSize?, bold? } | { kind:'image', id, x?,y?,width?,height? } \u2014 place a picture. Provide exactly one source: `data` (base64 or data URL, PNG/JPEG/WebP), `dataChunks` (base64 split into strings), `url` (`imageUrl`, `src`, `path`, `filePath`, `localPath` are aliases) or `assetId` (an existing asset, e.g. from convyy_analyze). Give width/height matching the image aspect ratio, or omit BOTH to auto-size from the decoded image. | { kind:'emoji', id, emoji:'\u{1F525}', size?:96, x?, y? } | { kind:'line', id, points:[{x:0,y:0},{x:200,y:100}], arrow:'both', dashed?:true } \u2014 absolute coordinates, no layout shift. | { kind:'embed', id, url:'https://www.youtube.com/watch?v=dQw4w9WgXcQ', x?, y?, width?, height? } \u2014 iframe, default 560\xD7315; unsafe_url or embed_host_not_allowed on unsafe/unsupported URLs. | { kind:'connector', from, to, label?, arrow? } \u2014 endpoints may reference ids already on the target page. Optional link:'https://example.com' on sticky, shape, text, table and emoji. Unsupported kind/shapeType fails with unsupported_kind. Omit coordinates to let the server lay boxes out.",
+            description: "Elements you generate from the request. Each is one of: { kind:'shape', id, text, shapeType, x?,y?,width?,height?, fill? } \u2014 shapeType is one of: rectangle | rounded-rectangle | ellipse | diamond | parallelogram | star | triangle | hexagon | process | decision | terminator | data | document | database | manual-operation | preparation | internal-storage | predefined-process | stored-data | display | delay | merge | off-page-connector | direct-access-storage | comment | note | circle-plus | circle-x (default process); fill is one of: transparent | white | amber | orange | green | sky | violet | fuchsia. | { kind:'sticky', id, text, color?, x?,y?,width? } \u2014 color is one of: amber | orange | green | sky | violet | fuchsia (default amber). Use these tokens, NOT plain color names like yellow/blue/green/red. | { kind:'frame', id, title, x?,y?,width?,height? } | { kind:'textDoc', id?, markdown, x?,y?,width? } \u2014 formatted text document, height calculated by the server. | { kind:'kanban', id, title, columns:[{id,title}], swimlanes?:[{id,title}], cards:[{id?,title,description?,columnId,swimlaneId?,status?,color?}], x?, y?, width? } \u2014 content-sized task board. | { kind:'bpmn', id?, title?, lanes?:[{id,title}], nodes:[{id,type,text?,laneId?}], flows:[{from,to,label?}], x?,y? } \u2014 business process laid out left-to-right by lanes; shapes remain ordinary editable objects. Node type: start | end | intermediate | task | gateway-xor | gateway-and | gateway-or. Limits: 10 lanes, 150 nodes, 300 flows, title/text 200 characters, label 100. | { kind:'flowchart', id?, title?, direction?:'TD'|'LR', nodes:[{id,text,type?}], edges:[{from,to,label?,dashed?}], groups?:[{id,title,nodeIds}], x?,y? } \u2014 flowchart laid out by the server (layered, default TD); shapes, arrow connectors and labels remain ordinary editable objects. Node type: process | decision | terminator | data | document | database | subprocess | note (default process). Limits: 150 nodes, 300 edges, 20 groups, title/text 200 characters, label 100. Example: { kind:'flowchart', nodes:[{id:'s',text:'Start',type:'terminator'},{id:'q',text:'Paid?',type:'decision'},{id:'ship',text:'Ship order'},{id:'e',text:'End',type:'terminator'}], edges:[{from:'s',to:'q'},{from:'q',to:'ship',label:'yes'},{from:'q',to:'s',label:'no',dashed:true},{from:'ship',to:'e'}] } | { kind:'mindmap', id?, root:{ text, children?:[{ text, children? }] }, side?:'both'|'right', x?,y? } \u2014 mindmap laid out by the server around a central ellipse, branches split left/right by default; each first-level branch gets its own board color, inherited by its descendants; links are attached connectors without arrows. | { kind:'tree', id?, title?, root:{ text, children?:[...] }, direction?:'TD'|'LR', x?,y? } \u2014 monochrome hierarchy (default TD) with connectors without arrows. Limits for both: 200 nodes, 8 levels including the root, text 200 characters. Example: { kind:'mindmap', root:{ text:'Launch', children:[{ text:'Marketing', children:[{text:'Ads'},{text:'PR'}] },{ text:'Product' }] } } | { kind:'chart', chartType:'bar'|'line'|'pie'|'donut'|'scatter'|'funnel', title?, categories?:string[], series:[{name?,color?,values?:number[],points?:[{x,y}]}] | fromTableId, tableSeries?, seriesInRows?, stacked?, horizontal?, valuePrefix?, valueSuffix?, xLabel?, yLabel?, width?, height?, x?, y? } \u2014 chart drawn by the server as one group of ordinary shapes, lines and text. Wrong types, unknown series fields, value counts that differ from categories or exceeded limits fail with invalid_chart / chart_too_large, never truncated. Example: { kind:'chart', chartType:'bar', title:'Revenue', categories:['Q1','Q2','Q3'], series:[{name:'2025',values:[12,15,19]},{name:'2026',values:[14,18,23]}], valueSuffix:'M' } | { kind:'table', id, rows: string[][], header?, columnWidths?, merges?: [{ row, col, rowSpan?, colSpan? }], x?, y? } \u2014 width/height ignored; size computed from rows and columns. | { kind:'text', id, text, x?,y?,width?,height?, fontSize?, bold? } | { kind:'image', id, x?,y?,width?,height? } \u2014 place a picture. Provide exactly one source: `data` (base64 or data URL, PNG/JPEG/WebP), `dataChunks` (base64 split into strings), `url` (`imageUrl`, `src`, `path`, `filePath`, `localPath` are aliases) or `assetId` (an existing asset, e.g. from convyy_analyze). Give width/height matching the image aspect ratio, or omit BOTH to auto-size from the decoded image. | { kind:'emoji', id, emoji:'\u{1F525}', size?:96, x?, y? } | { kind:'line', id, points:[{x:0,y:0},{x:200,y:100}], arrow:'both', dashed?:true } \u2014 absolute coordinates, no layout shift. | { kind:'embed', id, url:'https://www.youtube.com/watch?v=dQw4w9WgXcQ', x?, y?, width?, height? } \u2014 iframe, default 560\xD7315; unsafe_url or embed_host_not_allowed on unsafe/unsupported URLs. | { kind:'connector', from, to, label?, arrow? } \u2014 endpoints may reference ids already on the target page. Optional link:'https://example.com' on sticky, shape, text, table and emoji. Unsupported kind/shapeType fails with unsupported_kind. Omit coordinates to let the server lay boxes out.",
             items: {
               type: "object",
               description: "One board element. Fields that do not apply to the element kind are ignored.",
@@ -163,6 +163,7 @@ var toolCatalog_default = {
                     "flowchart",
                     "mindmap",
                     "tree",
+                    "chart",
                     "emoji",
                     "line",
                     "embed",
@@ -583,6 +584,124 @@ var toolCatalog_default = {
                   },
                   description: "Table cell merges with zero-based row/col, spans default to 1. Out-of-bounds or overlapping ranges fail with invalid_table."
                 },
+                chartType: {
+                  type: "string",
+                  enum: [
+                    "bar",
+                    "line",
+                    "pie",
+                    "donut",
+                    "scatter",
+                    "funnel"
+                  ],
+                  description: "Required for chart: bar, line, pie, donut, scatter or funnel. pie renders as a ring like donut (no total in the centre)."
+                },
+                categories: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 50,
+                  items: {
+                    type: "string",
+                    maxLength: 60
+                  },
+                  description: "Chart categories (x axis of bar/line, slices of pie/donut, stages of funnel), in display order. Not used by scatter. Limits: bar/line 50, pie/donut 6 (group the rest into Other), funnel 10."
+                },
+                series: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 8,
+                  items: {
+                    type: "object",
+                    properties: {
+                      name: {
+                        type: "string",
+                        maxLength: 60
+                      },
+                      color: {
+                        type: "string",
+                        enum: [
+                          "sky",
+                          "green",
+                          "amber",
+                          "fuchsia",
+                          "violet",
+                          "orange"
+                        ]
+                      },
+                      values: {
+                        type: "array",
+                        items: {
+                          type: "number"
+                        }
+                      },
+                      points: {
+                        type: "array",
+                        maxItems: 500,
+                        items: {
+                          type: "object",
+                          properties: {
+                            x: {
+                              type: "number"
+                            },
+                            y: {
+                              type: "number"
+                            }
+                          },
+                          required: [
+                            "x",
+                            "y"
+                          ],
+                          additionalProperties: false
+                        }
+                      }
+                    },
+                    additionalProperties: false
+                  },
+                  description: "Required for chart. bar/line: 1..8 series, each with values (one number per category). pie/donut/funnel: exactly one series with non-negative values. scatter: 1..8 series with points [{x,y}] (500 points in total). Colors default to a palette cycle; legend shows series names when there is more than one."
+                },
+                fromTableId: {
+                  type: "string",
+                  description: "Chart: build the chart from a table already on the board (id from convyy_analyze) instead of categories/series. First row = series names, first column = categories (x values for scatter), other cells = plain numbers (1 200, 1.5, 1,5, 12%, $40). A non-number or merged data cell fails with invalid_chart naming the cell. Placed to the right of the table unless x/y are given."
+                },
+                tableSeries: {
+                  type: "array",
+                  items: {
+                    type: "string"
+                  },
+                  description: "With fromTableId: header names of the columns to chart, in order (default all). pie/donut/funnel need exactly one."
+                },
+                seriesInRows: {
+                  type: "boolean",
+                  description: "With fromTableId: series are table rows (first column = names, first row = categories)."
+                },
+                stacked: {
+                  type: "boolean",
+                  description: "Bar chart: stack series instead of grouping them side by side."
+                },
+                horizontal: {
+                  type: "boolean",
+                  description: "Bar chart: horizontal bars, categories on the left."
+                },
+                valuePrefix: {
+                  type: "string",
+                  maxLength: 8,
+                  description: "Chart value prefix, e.g. '$'."
+                },
+                valueSuffix: {
+                  type: "string",
+                  maxLength: 8,
+                  description: "Chart value suffix, e.g. '%' or ' \u20BD'."
+                },
+                xLabel: {
+                  type: "string",
+                  maxLength: 80,
+                  description: "Chart caption under the x axis (bar/line/scatter)."
+                },
+                yLabel: {
+                  type: "string",
+                  maxLength: 80,
+                  description: "Chart caption above the value axis (bar/line/scatter)."
+                },
                 x: {
                   type: "number",
                   description: "Left edge in board units. Omit to let the server lay the element out."
@@ -593,11 +712,11 @@ var toolCatalog_default = {
                 },
                 width: {
                   type: "number",
-                  description: "Width. Lower bound for kanban (content determines minimum). Ignored for tables, BPMN, flowcharts, mindmaps and trees (computed from content). For stickies this is the side of the square."
+                  description: "Width. Lower bound for kanban (content determines minimum). Ignored for tables, BPMN, flowcharts, mindmaps and trees (computed from content). Chart: 320..1600, default 720. For stickies this is the side of the square."
                 },
                 height: {
                   type: "number",
-                  description: "Height. Ignored for kanban (computed from content), tables (computed from rows), BPMN/flowchart/mindmap/tree (computed from the graph) and textDoc (computed from Markdown). Sticky square side when width is omitted; otherwise width takes precedence."
+                  description: "Height. Ignored for kanban (computed from content), tables (computed from rows), BPMN/flowchart/mindmap/tree (computed from the graph) and textDoc (computed from Markdown). Chart: 240..1200, default 440 (grows when the legend needs room). Sticky square side when width is omitted; otherwise width takes precedence."
                 },
                 color: {
                   type: "string",
@@ -763,7 +882,7 @@ var toolCatalog_default = {
     {
       name: "convyy_edit",
       title: "Edit Board Objects",
-      description: 'Change existing board objects by id from convyy_analyze: update fields, move, resize, delete, reorder, edit table cells/rows/columns and kanban columns/cards. All operations apply together or none. Locked objects cannot be changed. Use convyy_edit_doc for document text. Deletion detaches attached lines and preserves objects inside a deleted frame, just like user deletion. One user undo or convyy_revert restores the entire call; revert refuses if affected objects changed afterwards. Table order: delete rows/columns, addRows, addColumns, setCells; indices refer to the state at that step. Kanban order: addColumns, updateColumns, deleteCards, addCards, updateCards, moveCards, deleteColumns. Examples: {op:"table",id:"t",setCells:[{row:1,col:0,text:"Ada"}]}; {op:"kanban",id:"k",addCards:[{title:"Review",columnId:"todo"}]}.',
+      description: 'Change existing board objects by id from convyy_analyze: update fields, move, resize, delete, reorder, edit table cells/rows/columns and kanban columns/cards. All operations apply together or none. Locked objects cannot be changed. Use convyy_edit_doc for document text. Deletion detaches attached lines and preserves objects inside a deleted frame, just like user deletion. One user undo or convyy_revert restores the entire call; revert refuses if affected objects changed afterwards. To tidy up, use op arrange: you decide which objects belong together and their order, the server computes positions (objects inside a moved frame move with it; connectors follow their objects and are not listed). Table order: delete rows/columns, addRows, addColumns, setCells; indices refer to the state at that step. Kanban order: addColumns, updateColumns, deleteCards, addCards, updateCards, moveCards, deleteColumns. Examples: {op:"table",id:"t",setCells:[{row:1,col:0,text:"Ada"}]}; {op:"kanban",id:"k",addCards:[{title:"Review",columnId:"todo"}]}; {op:"arrange",layout:"grid",ids:["a","b","c","d"]}; {op:"arrange",layout:"groups",groups:[{title:"Pricing",ids:["s1","s4"]},{title:"Onboarding",ids:["s2","s3"]}]}.',
       inputSchema: {
         type: "object",
         properties: {
@@ -1092,12 +1211,79 @@ var toolCatalog_default = {
                     "front",
                     "back",
                     "table",
-                    "kanban"
+                    "kanban",
+                    "arrange"
                   ]
                 },
                 id: {
                   type: "string",
-                  minLength: 1
+                  minLength: 1,
+                  description: "Target object id; required for every op except arrange."
+                },
+                layout: {
+                  type: "string",
+                  enum: [
+                    "align-left",
+                    "align-center",
+                    "align-right",
+                    "align-top",
+                    "align-middle",
+                    "align-bottom",
+                    "distribute-horizontal",
+                    "distribute-vertical",
+                    "row",
+                    "column",
+                    "grid",
+                    "groups"
+                  ],
+                  description: "arrange: align-* lines objects up on the set's edge or centre; distribute-* spaces them evenly (outer objects stay unless gap is given); row/column/grid pack them in ids order from the set's top-left; groups lays each group out as a grid block, blocks side by side."
+                },
+                ids: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 500,
+                  items: {
+                    type: "string"
+                  },
+                  description: "arrange (all layouts except groups): object ids in the wanted order; align/distribute need at least 2."
+                },
+                groups: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 30,
+                  items: {
+                    type: "object",
+                    properties: {
+                      ids: {
+                        type: "array",
+                        minItems: 1,
+                        items: {
+                          type: "string"
+                        }
+                      },
+                      title: {
+                        type: "string",
+                        maxLength: 200
+                      }
+                    },
+                    required: [
+                      "ids"
+                    ],
+                    additionalProperties: false
+                  },
+                  description: "arrange layout groups: clusters of ids (e.g. stickies sorted by theme); a titled group gets a new frame around it."
+                },
+                gap: {
+                  type: "number",
+                  minimum: 0,
+                  maximum: 2e3,
+                  description: "arrange: space between objects in board units (default 40)."
+                },
+                columns: {
+                  type: "integer",
+                  minimum: 1,
+                  maximum: 50,
+                  description: "arrange grid: number of columns (default about \u221An)."
                 },
                 text: {
                   type: "string",
@@ -1154,8 +1340,7 @@ var toolCatalog_default = {
                 }
               },
               required: [
-                "op",
-                "id"
+                "op"
               ],
               additionalProperties: false
             }

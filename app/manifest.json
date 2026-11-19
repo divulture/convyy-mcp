@@ -4,12 +4,12 @@
   "channel": "git",
   "versions": {
     "package": "0.1.0",
-    "build": "8f6f6110",
+    "build": "20e21528",
     "relayProtocol": "convyy-dev-relay.v1",
     "relayRevision": 4,
     "toolContract": {
       "schemaVersion": 1,
-      "catalogSha256": "fb83072475e57e00952ccf17dd04b6f3e7d0c088515b4a599a7af2e90027c184",
+      "catalogSha256": "e8e782a5cbee6a2d7c324261162c2d90b11dd434706d2fec5381b99122e04618",
       "tools": [
         "convyy_draw",
         "convyy_edit",
@@ -31,9 +31,9 @@
   "files": {
     "LICENSE": "e9d36de7e98ca01222b482b1c87dbc8ee37076320ccfba500b4452ff8ea6be9b",
     "NOTICE": "3b2e3db4fc2f850001419cc82b7fcdc6befd550b0c5f350f6a471fb871d13e61",
-    "dev/devRelayCli.js": "71cac8868db0e22cf9ae2d7fbee67723acf4bec4a2d70084f2340231fc9cd86c",
+    "dev/devRelayCli.js": "da2eb3c925a0eff646b00f74a77874c1b7d7525fdca529d7d8c529a6ce7bd38c",
     "installer.js": "44e7e781a03f792330a9c6570e7780dd0c691d29c40dc910571ec60562a21c04",
     "package.json": "3ca9d4afd21425087cf31893b8f9f63c81b0b8408db5e343ca76e5f8aa26ab9a",
-    "server.js": "d0f7d23caf945884a108fc1bdb78b1706ba3edc486eef0a3124f459420300db5"
+    "server.js": "fd465b50051cef0a49efba471d9c0af3e9028433c7342f837a3bfb373e3a5f97"
   }
 }
